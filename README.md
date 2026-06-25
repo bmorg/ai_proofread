@@ -1,4 +1,4 @@
-# AI Proof Reader for Typo3 (`ai_proofread`)
+# AI Proof Reader for Typo3
 
 *An exercise in vibe-coding. Fully developed by Claude Code / Opus 4.8 - heavily guided and reviewed, but almost no code was handwritten.*
 
@@ -19,14 +19,19 @@ This is an early exploratory version with serious limitations:
 - **Single page language only.** So far, only l=0 can be checked.
 - Only **tested** on Typo3 11.
 
-`## How it works
+## How it works
 
 - Access the new module **"KI-Lektorat"** from any page:
-  ![KI-Lektorat module in document header](.github/images/docheader.png)
+
+  <img src=".github/images/docheader.png" alt="KI-Lektorat module in document header" width="600"/>
+  
 - Checks need to be scheduled ("Report erstellen"). Depending on settings the check can take multiple minutes.
-  ![Schedule check](.github/images/schedule-check.png)
+
+  <img src=".github/images/schedule-check.png" alt="Schedule check" width="600"/>
+  
 - When ready, the report is automatically shown:
-  ![Generated report view](.github/images/report.png)
+
+  <img src=".github/images/report.png" alt="Generated report view" width="600"/>
 
 ## Installation
 
@@ -36,20 +41,20 @@ This is an early exploratory version with serious limitations:
 composer require bmorg/ai_proofread
 ```
 
-Or simply download via "Releases" here on Github.
+Or download via [Github Releases](https://github.com/bmorg/ai_proofread/releases).
 
 In the TYPO3 backend:
 
 1. **Database migration** Via Admin Tools → Maintenance → Analyze Database Structure
 2. Extension configuration (see below).
-3. **Scheduler task*** Register the command **`aiproofread:process-queue`** as a recurring Scheduler task (every 60s).
+3. **Scheduler task** Register the command **`aiproofread:process-queue`** as a recurring Scheduler task (every 60s).
 
 ## Configuration
 
 Extension configuration (Admin Tools → Settings → Extension Configuration →
 `ai_proofread`):
 
-Fill in at least the provider settings. Recommended
+Fill in at least the provider settings. Recommended:
 
 | Setting | Value                                                                                   |
 |---|-----------------------------------------------------------------------------------------------|
