@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>AI Proofreader Robot</title>
+
+  <!-- BACKGROUND -->
+  <rect width="64" height="64" fill="#92cee8"/>
+
+  <!-- ROBOT — scaled to ~44x44 and centered with ~10px padding on all sides -->
+  <g transform="translate(10,10) scale(0.6875)">
+
+    <!-- ARMS -->
+    <rect x="1"  y="47" width="9"  height="12" rx="1" fill="#2A5099"/>
+    <rect x="54" y="47" width="9"  height="12" rx="1" fill="#2A5099"/>
+
+    <!-- BODY -->
+    <rect x="9" y="44" width="46" height="19" rx="2" fill="#2A5099"/>
+
+    <!-- CHEST PANEL -->
+    <rect x="15" y="47" width="34" height="14" rx="1" fill="#162660"/>
+
+    <!-- PENCIL — centered, flipped horizontal -->
+    <g transform="translate(32,54) rotate(45)">
+      <rect x="-2" y="-7" width="4" height="9" rx="1" fill="#C8A83A"/>
+      <polygon points="-2,2 2,2 0,5.5" fill="#6E7D8C"/>
+    </g>
+
+    <!-- NECK -->
+    <rect x="25" y="39" width="14" height="6" fill="#2A5099"/>
+
+    <!-- EAR TABS -->
+    <rect x="2"  y="19" width="7"  height="13" rx="1" fill="#2A5099"/>
+    <rect x="55" y="19" width="7"  height="13" rx="1" fill="#2A5099"/>
+
+    <!-- ANTENNA STICK -->
+    <rect x="30" y="5" width="4" height="7" fill="#3A4A5C"/>
+
+    <!-- HEAD -->
+    <rect x="7" y="10" width="50" height="30" rx="2" fill="#4472B0"/>
+
+    <!-- LEFT EYE -->
+    <rect x="11" y="14" width="17" height="16" rx="1" fill="#FFFFFF"/>
+    <rect x="15" y="18" width="9"  height="8"         fill="#C8A83A"/>
+    <rect x="17" y="20" width="5"  height="4"         fill="#1F2937"/>
+
+    <!-- RIGHT EYE -->
+    <rect x="36" y="14" width="17" height="16" rx="1" fill="#FFFFFF"/>
+    <rect x="40" y="18" width="9"  height="8"         fill="#C8A83A"/>
+    <rect x="42" y="20" width="5"  height="4"         fill="#1F2937"/>
+
+    <!-- MOUTH — pixel-art stepped smile -->
+    <rect x="15" y="32" width="4" height="3" rx="1" fill="#1B3A80"/>
+    <rect x="21" y="34" width="4" height="3" rx="1" fill="#1B3A80"/>
+    <rect x="27" y="35" width="4" height="3" rx="1" fill="#1B3A80"/>
+    <rect x="33" y="35" width="4" height="3" rx="1" fill="#1B3A80"/>
+    <rect x="39" y="34" width="4" height="3" rx="1" fill="#1B3A80"/>
+    <rect x="45" y="32" width="4" height="3" rx="1" fill="#1B3A80"/>
+
+    <!-- ANTENNA TOP -->
+    <rect x="26" y="1" width="12" height="7" rx="1" fill="#B84040"/>
+
+  </g>
+
+</svg>

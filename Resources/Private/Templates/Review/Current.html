@@ -1,0 +1,159 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<f:if condition="{queued}">
+    <!-- Report is being generated: reload the module every 30s (no JS) until the result is ready. -->
+    <meta http-equiv="refresh" content="30" />
+</f:if>
+
+<style>
+.aiproofread-report > summary { cursor: pointer; font-weight: 600; margin-bottom: .5em; }
+.aiproofread-section { margin-top: 1.25em; }
+.aiproofread-section > summary { cursor: pointer; font-weight: 600; font-size: 1.15em; margin-bottom: .4em; padding: .15em 0; }
+.aiproofread-info { cursor: help; color: #6c757d; margin-left: .25em; }
+.aiproofread-info:hover, .aiproofread-info:focus { color: #0a7ea4; }
+.aiproofread-finding {
+    margin-bottom: .6rem; border: 1px solid #d0d0d0; border-radius: 3px; overflow: hidden;
+}
+.aiproofread-diff-line {
+    display: flex; align-items: baseline; padding: .3rem .5rem;
+    font-family: var(--bs-font-monospace, monospace); font-size: .9em;
+}
+.aiproofread-marker {
+    flex: 0 0 1.2em; color: #888; user-select: none; font-weight: bold;
+}
+.aiproofread-text { white-space: pre-wrap; word-break: break-word; }
+.aiproofread-del { background: #f7d6d9; color: #842029; }
+.aiproofread-add { background: #d1e7dd; color: #0f5132; }
+.aiproofread-chg { border-radius: 2px; font-weight: 600; padding: 0 .05em; }
+.aiproofread-del .aiproofread-chg { background: #ec9aa2; }
+.aiproofread-add .aiproofread-chg { background: #9cccb4; }
+.aiproofread-ws { opacity: .6; }
+.aiproofread-explanation {
+    padding: .4rem .5rem .4rem 1.7em; background: #fafafa;
+    border-top: 1px solid #ececec; color: #555; font-size: .90em;
+}
+.aiproofread-note {
+    padding: .4rem .6rem; margin-bottom: .4rem;
+    background: #fafafa; border-left: 3px solid #adb5bd; border-radius: 2px;
+}
+.aiproofread-note--page { border-left-color: #0a7ea4; }
+.aiproofread-note .aiproofread-rec { display: block; margin-top: .2em; color: #555; font-size: .85em; }
+</style>
+
+<f:if condition="{noAccess}">
+    <f:then>
+        <h1>KI-Lektorat</h1>
+        <div class="alert alert-danger">Kein Zugriff auf diese Seite.</div>
+    </f:then>
+    <f:else>
+<f:if condition="{noPage}">
+    <f:then>
+        <h1>KI-Lektorat</h1>
+        <p>Bitte im Seitenbaum eine Seite auswählen.</p>
+    </f:then>
+    <f:else>
+        <h1>KI-Lektorat: {pageTitle}</h1>
+
+        <f:if condition="{error}">
+            <div class="alert alert-danger">{error}</div>
+        </f:if>
+
+        <p>
+            Status: <strong>{status}</strong>
+            <f:if condition="{hasReport}"><span class="aiproofread-info" tabindex="0" title="Report erstellt am {reportCreatedAt} · Modell: {model}">&#9432;</span></f:if>
+            <f:if condition="{proofedAt}"> &middot; geprüft am {proofedAt}</f:if>
+        </p>
+
+        <f:if condition="{queued}">
+            <div class="alert alert-info">
+                Der Report wird erstellt … Die Prüfung läuft im Hintergrund (ein Durchlauf pro Inhaltselement) und kann einige Minuten dauern.
+                Diese Seite neu laden, um das Ergebnis zu sehen.
+            </div>
+        </f:if>
+        <f:if condition="{queueError}">
+            <div class="alert alert-danger">
+                Die letzte Prüfung ist fehlgeschlagen: {queueError}<br />
+                Details im API-Verlauf; über „Neuen Report erstellen“ erneut versuchen.
+            </div>
+        </f:if>
+        <f:if condition="{isHistorical}">
+            <div class="alert alert-info">
+                Veralteter Report vom {reportCreatedAt}. <a href="{reportsUrl}">Zum Report-Verlauf</a>
+            </div>
+        </f:if>
+
+        <f:if condition="{hasReport}">
+            <f:then>
+                <f:if condition="{collapsed}">
+                    <f:then>
+                        <details class="aiproofread-report">
+                            <summary>Report vom {reportCreatedAt} — {findingsCount} Fundstelle(n)</summary>
+                            <f:render section="ReportBody" arguments="{_all}" />
+                        </details>
+                    </f:then>
+                    <f:else>
+                        <details class="aiproofread-report" open="open">
+                            <summary>Report vom {reportCreatedAt} — {findingsCount} Fundstelle(n)</summary>
+                            <f:render section="ReportBody" arguments="{_all}" />
+                        </details>
+                    </f:else>
+                </f:if>
+            </f:then>
+            <f:else>
+                <p>Diese Seite wurde noch nicht geprüft. Über „Report erstellen“ oben starten.</p>
+            </f:else>
+        </f:if>
+    </f:else>
+</f:if>
+    </f:else>
+</f:if>
+
+<f:section name="ReportBody">
+    <f:for each="{sections}" as="section">
+        <details class="aiproofread-section" open="open">
+            <summary>{section.label} ({section.findings -> f:count()})</summary>
+            <f:for each="{section.findings}" as="finding">
+                <div class="aiproofread-finding">
+                    <div class="aiproofread-diff-line aiproofread-del"><span class="aiproofread-marker">&minus;</span><span class="aiproofread-text"><f:format.raw>{finding.quoteHtml}</f:format.raw></span></div>
+                    <div class="aiproofread-diff-line aiproofread-add"><span class="aiproofread-marker">+</span><span class="aiproofread-text"><f:format.raw>{finding.suggestionHtml}</f:format.raw></span></div>
+                    <f:if condition="{finding.explanation}">
+                        <div class="aiproofread-explanation">{finding.explanation}</div>
+                    </f:if>
+                </div>
+            </f:for>
+        </details>
+    </f:for>
+
+    <f:if condition="{pageFindings -> f:count()} > 0">
+        <details class="aiproofread-section" open="open">
+            <summary>Seitenweite Hinweise ({pageFindings -> f:count()})</summary>
+            <f:for each="{pageFindings}" as="pf">
+                <div class="aiproofread-note aiproofread-note--page">
+                    <strong>{pf.label}:</strong> {pf.observation}
+                    <f:if condition="{pf.suggestion}">
+                        <span class="aiproofread-rec">Empfehlung: {pf.suggestion}</span>
+                    </f:if>
+                </div>
+            </f:for>
+        </details>
+    </f:if>
+
+    <f:if condition="{other -> f:count()} > 0">
+        <details class="aiproofread-section" open="open">
+            <summary>Weitere Hinweise ({other -> f:count()})</summary>
+            <f:for each="{other}" as="note">
+                <div class="aiproofread-note">{note}</div>
+            </f:for>
+        </details>
+    </f:if>
+
+    <f:if condition="{sections -> f:count()} == 0">
+        <f:if condition="{pageFindings -> f:count()} == 0">
+            <f:if condition="{other -> f:count()} == 0">
+                <p class="text-success">Keine Beanstandungen.</p>
+            </f:if>
+        </f:if>
+    </f:if>
+</f:section>
+
+</html>

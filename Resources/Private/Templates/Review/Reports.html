@@ -1,0 +1,71 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<f:if condition="{queued}">
+    <!-- Report is being generated: reload the module every 30s (no JS) until the new run appears. -->
+    <meta http-equiv="refresh" content="30" />
+</f:if>
+
+<style>
+/* Whole-row-clickable without JS: each cell is a full-bleed link. */
+.aiproofread-reports td { padding: 0; }
+.aiproofread-reports td > a { display: block; padding: .5rem .75rem; color: inherit; text-decoration: none; }
+.aiproofread-reports tbody tr { cursor: pointer; }
+.aiproofread-reports .num { text-align: right; }
+</style>
+
+<f:if condition="{noPage}">
+    <f:then>
+        <h1>KI-Lektorat</h1>
+        <p>Bitte im Seitenbaum eine Seite auswählen.</p>
+    </f:then>
+    <f:else>
+        <h1>Report-Verlauf: {pageTitle}</h1>
+        <p>Alle für diese Seite erstellten Reports, neueste zuerst.</p>
+
+        <f:if condition="{queued}">
+            <div class="alert alert-info">
+                Der Report wird erstellt … Die Prüfung läuft im Hintergrund (ein Durchlauf pro Inhaltselement) und kann einige Minuten dauern.
+                Diese Seite neu laden, um das Ergebnis zu sehen.
+            </div>
+        </f:if>
+        <f:if condition="{proofed}">
+            <div class="alert alert-success">Diese Seite wurde von {proofedBy} am {proofedAt} als geprüft markiert.</div>
+        </f:if>
+        <f:if condition="{queueError}">
+            <div class="alert alert-danger">
+                Die letzte Prüfung ist fehlgeschlagen: {queueError}<br />
+                Details im API-Verlauf; über „Neuen Report erstellen“ erneut versuchen.
+            </div>
+        </f:if>
+
+        <table class="aiproofread-reports table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Benutzer</th>
+                    <f:for each="{categoryHeaders}" as="header"><th class="num">{header}</th></f:for>
+                    <th class="num">Seite</th>
+                    <th class="num">Weitere</th>
+                    <th class="num">Kosten</th>
+                </tr>
+            </thead>
+            <tbody>
+                <f:for each="{rows}" as="row">
+                    <tr>
+                        <td><a href="{row.url}">{row.date}</a></td>
+                        <td><a href="{row.url}">{row.user}</a></td>
+                        <f:for each="{row.categories}" as="count"><td class="num"><a href="{row.url}">{count}</a></td></f:for>
+                        <td class="num"><a href="{row.url}">{row.pageFindings}</a></td>
+                        <td class="num"><a href="{row.url}">{row.other}</a></td>
+                        <td class="num"><a href="{row.url}">{row.cost}</a></td>
+                    </tr>
+                </f:for>
+                <f:if condition="{rows -> f:count()} == 0">
+                    <tr><td colspan="{columnCount}" style="padding: .5rem .75rem;">Für diese Seite wurde noch kein Report erstellt.</td></tr>
+                </f:if>
+            </tbody>
+        </table>
+    </f:else>
+</f:if>
+
+</html>

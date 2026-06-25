@@ -1,0 +1,40 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<p><a href="{backUrl}">&laquo; Zur Übersicht</a></p>
+
+<f:if condition="{notFound}">
+    <f:then>
+        <div class="alert alert-warning">Eintrag nicht gefunden.</div>
+    </f:then>
+    <f:else>
+        <h1>Eintrag #{entry.uid}</h1>
+        <table class="table table-bordered">
+            <tr><th>Zeitpunkt</th><td>{entry.date}</td></tr>
+            <tr><th>Benutzer</th><td>{entry.user}</td></tr>
+            <tr><th>Seite</th><td>{entry.page}</td></tr>
+            <tr><th>Inhaltselement</th><td>{entry.element}</td></tr>
+            <tr><th>Modell</th><td><code>{entry.model}</code></td></tr>
+            <tr><th>Provider</th><td>{entry.provider}</td></tr>
+            <tr><th>Tokens (in / out)</th><td>{entry.inputTokens} / {entry.outputTokens}</td></tr>
+            <tr><th>Kosten (USD)</th><td>{entry.cost}</td></tr>
+            <tr><th>Dauer</th><td>{entry.duration}</td></tr>
+            <tr>
+                <th>Status</th>
+                <td>
+                    <f:if condition="{entry.success}">
+                        <f:then><span class="badge badge-success">OK</span></f:then>
+                        <f:else><span class="badge badge-danger">Fehler: {entry.error}</span></f:else>
+                    </f:if>
+                </td>
+            </tr>
+        </table>
+
+        <h2>Anfrage an die API</h2>
+        <pre style="max-height: 24rem; overflow: auto;"><f:format.htmlentities>{entry.request}</f:format.htmlentities></pre>
+
+        <h2>Antwort der API</h2>
+        <pre style="max-height: 24rem; overflow: auto;"><f:format.htmlentities>{entry.response}</f:format.htmlentities></pre>
+    </f:else>
+</f:if>
+
+</html>

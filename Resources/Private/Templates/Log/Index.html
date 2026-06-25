@@ -1,0 +1,57 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<style>
+/* Whole-row-clickable without JS: each cell is a full-bleed link. */
+.aiproofread-loglist td { padding: 0; }
+.aiproofread-loglist td > a { display: block; padding: .5rem .75rem; color: inherit; text-decoration: none; }
+.aiproofread-loglist tbody tr { cursor: pointer; }
+.aiproofread-loglist .num { text-align: right; }
+</style>
+
+<h1>API-Verlauf</h1>
+<p>API-Aufrufe, neueste zuerst.</p>
+
+<table class="aiproofread-loglist table table-striped table-hover">
+    <thead>
+        <tr>
+            <th>Zeitpunkt</th>
+            <th>Benutzer</th>
+            <th class="num">Seite</th>
+            <th class="num">Inhaltselement</th>
+            <th>Modell</th>
+            <th>Provider</th>
+            <th class="num">Tokens</th>
+            <th class="num">Kosten</th>
+            <th class="num">Dauer</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        <f:for each="{rows}" as="row">
+            <tr>
+                <td><a href="{row.detailUrl}">{row.date}</a></td>
+                <td><a href="{row.detailUrl}">{row.user}</a></td>
+                <td class="num"><a href="{row.detailUrl}">{row.page}</a></td>
+                <td class="num"><a href="{row.detailUrl}">{row.element}</a></td>
+                <td><a href="{row.detailUrl}"><code>{row.model}</code></a></td>
+                <td><a href="{row.detailUrl}">{row.provider}</a></td>
+                <td class="num"><a href="{row.detailUrl}">{row.tokens}</a></td>
+                <td class="num"><a href="{row.detailUrl}">{row.cost}</a></td>
+                <td class="num"><a href="{row.detailUrl}">{row.duration}</a></td>
+                <td>
+                    <a href="{row.detailUrl}">
+                        <f:if condition="{row.success}">
+                            <f:then><span class="badge badge-success">OK</span></f:then>
+                            <f:else><span class="badge badge-danger">Fehler</span></f:else>
+                        </f:if>
+                    </a>
+                </td>
+            </tr>
+        </f:for>
+        <f:if condition="{rows -> f:count()} == 0">
+            <tr><td colspan="10" style="padding: .5rem .75rem;">Noch keine Einträge.</td></tr>
+        </f:if>
+    </tbody>
+</table>
+
+</html>

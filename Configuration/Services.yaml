@@ -1,0 +1,42 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    public: false
+
+  Bmorg\AiProofread\:
+    resource: '../Classes/*'
+
+  # The active LLM client: OpenAI-compatible connector or the mock when the
+  # "useMock" setting is on. LlmClientFactory picks between them.
+  # class: satisfies autoconfigure checks for a factory-built interface binding.
+  Bmorg\AiProofread\Service\Llm\LlmClientInterface:
+    class: Bmorg\AiProofread\Service\Llm\LlmClientInterface
+    factory: ['@Bmorg\AiProofread\Service\Llm\LlmClientFactory', 'create']
+
+  # Adds the "KI-Lektorat" button to other modules' docheaders.
+  Bmorg\AiProofread\EventListener\AddProofreadButton:
+    tags:
+      - name: event.listener
+        identifier: 'ai-proofread/page-module-button'
+        event: TYPO3\CMS\Backend\Template\Components\ModifyButtonBarEvent
+
+  # Module controller must be public so the route target can resolve it.
+  Bmorg\AiProofread\Controller\ReviewModuleController:
+    public: true
+
+  # Console commands. Registered here (not Configuration/Commands.php) so the
+  # name and the schedulable flag are explicit and reliably honored on v11–v13.
+  # autoconfigure: false avoids a second, unnamed console.command tag.
+  Bmorg\AiProofread\Command\ProcessQueueCommand:
+    autoconfigure: false
+    tags:
+      - name: console.command
+        command: 'aiproofread:process-queue'
+        schedulable: true
+  Bmorg\AiProofread\Command\ProofreadSubtreeCommand:
+    autoconfigure: false
+    tags:
+      - name: console.command
+        command: 'aiproofread:subtree'
+        schedulable: true

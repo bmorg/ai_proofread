@@ -1,0 +1,32 @@
+{
+    "name": "bmorg/ai_proofread",
+    "type": "typo3-cms-extension",
+    "description": "AI-assisted proofreading of TYPO3 page content",
+    "license": "MIT",
+    "keywords": ["TYPO3", "proofreading", "AI", "LLM", "OpenRouter", "editorial"],
+    "authors": [
+        {
+            "name": "bmorg",
+            "email": "contact@bmorg.io",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "typo3/cms-core": "^11.5 || ^12.4 || ^13.4",
+        "typo3/cms-backend": "^11.5 || ^12.4 || ^13.4",
+        "guzzlehttp/guzzle": "^7.0",
+        "guzzlehttp/psr7": "^1.7 || ^2.0",
+        "psr/http-message": "^1.0 || ^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Bmorg\\AiProofread\\": "Classes/"
+        }
+    },
+    "extra": {
+        "typo3/cms": {
+            "extension-key": "ai_proofread"
+        }
+    }
+}
