@@ -52,16 +52,17 @@ final class OpenAiCompatibleClient extends AbstractHttpLlmClient
         ];
         $body += $this->responseFormat($mode, $jsonSchema);
 
-        // OpenRouter provider routing: pin to the configured provider(s) — e.g.
-        // Anthropic, which enforces valid structured-output JSON. With allow_fallbacks
-        // off (default), the request is served *only* by them; without it OpenRouter
-        // load-balances to providers that ignore response_format (Google → fenced/
-        // invalid JSON). Field names are snake_case and the value is a real boolean
-        // (a camelCase key or "false" string is silently ignored → fallbacks stay on).
-        // Clear the providerOrder setting to let OpenRouter route freely instead.
-        $providerOrder = $this->providerOrder();
-        if ($providerOrder !== []) {
-            $body['provider'] = ['order' => $providerOrder, 'allow_fallbacks' => (bool)$this->config('allowFallbacks')];
+        // OpenRouter provider routing: pin strictly to one provider, or route
+        // freely. Pinning (pinProvider set, e.g. "anthropic") serves the request
+        // *only* by that provider with no fallbacks — so a provider that enforces
+        // valid structured-output JSON is guaranteed, and a temporary outage fails
+        // with a clear error instead of silently routing to one that ignores
+        // response_format (Google → fenced/invalid JSON). allow_fallbacks is
+        // snake_case and a real boolean (a camelCase key or "false" string is
+        // silently ignored → fallbacks stay on). Empty pinProvider = free routing.
+        $pinProvider = trim((string)($this->config('pinProvider') ?? ''));
+        if ($pinProvider !== '') {
+            $body['provider'] = ['order' => [$pinProvider], 'allow_fallbacks' => false];
         }
 
         // Provider reasoning/thinking (e.g. OpenRouter "reasoning") — improves
@@ -181,34 +182,6 @@ final class OpenAiCompatibleClient extends AbstractHttpLlmClient
             return $configured;
         }
         return (bool)$this->config('reasoning') ? 600 : 180;
-    }
-
-    /**
-     * OpenRouter provider allow-list (comma-separated slugs, lowercase, e.g.
-     * "anthropic"). Combined with allow_fallbacks=false the request is served
-     * *only* by these — so a temporarily unavailable provider fails the check
-     * with a clear error rather than silently routing to one that emits invalid
-     * JSON. Defaults to "anthropic" when the key was never saved (null), so the
-     * schema-enforcing provider is pinned out of the box without a config
-     * re-save; an explicit empty value disables routing (full OpenRouter
-     * load-balancing, fallbacks on).
-     *
-     * @return list<string>
-     */
-    private function providerOrder(): array
-    {
-        $raw = $this->config('providerOrder');
-        if ($raw === null) {
-            $raw = 'anthropic';
-        }
-        $out = [];
-        foreach (explode(',', (string)$raw) as $provider) {
-            $provider = trim($provider);
-            if ($provider !== '') {
-                $out[] = $provider;
-            }
-        }
-        return $out;
     }
 
     /**

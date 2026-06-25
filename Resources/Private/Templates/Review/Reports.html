@@ -57,7 +57,7 @@
                         <f:for each="{row.categories}" as="count"><td class="num"><a href="{row.url}">{count}</a></td></f:for>
                         <td class="num"><a href="{row.url}">{row.pageFindings}</a></td>
                         <td class="num"><a href="{row.url}">{row.other}</a></td>
-                        <td class="num"><a href="{row.url}">{row.cost}</a></td>
+                        <td class="num"><a href="{row.url}" title="{f:if(condition: row.model, then: 'Modell: {row.model}')}">{row.cost}</a></td>
                     </tr>
                 </f:for>
                 <f:if condition="{rows -> f:count()} == 0">

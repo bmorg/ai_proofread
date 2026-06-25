@@ -2,6 +2,13 @@
 <f:comment>
     v13 module-chrome wrapper: the inner view is pre-rendered (StandaloneView) and
     passed in as {content}. See ReviewModuleController::moduleResponse().
+
+    Unlike the v11/12 renderContent() chrome, this custom wrapper does not render
+    flash messages automatically, so we render the default queue explicitly —
+    otherwise the (storeInSession) Einstellungen save-confirmation would be silently
+    dropped on v13. "core.template.flashMessages" is FlashMessageService's default
+    queue, the one getMessageQueueByIdentifier() (no argument) enqueues onto.
 </f:comment>
+<f:flashMessages queueIdentifier="core.template.flashMessages" />
 <f:format.raw>{content}</f:format.raw>
 </html>

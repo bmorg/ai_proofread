@@ -1,0 +1,99 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<style>
+.aiproofread-presets { list-style: none; padding: 0; margin: 0 0 1rem; max-width: 48rem; }
+.aiproofread-presets li { border: 1px solid #d0d0d0; border-left: 3px solid #d0d0d0; border-radius: 3px; margin-bottom: .5rem; }
+.aiproofread-presets li.is-active { border-color: var(--bs-primary, #0d6efd); border-left-color: var(--bs-primary, #0d6efd); background: rgba(13, 110, 253, .06); }
+.aiproofread-presets label { display: flex; align-items: flex-start; gap: .6rem; padding: .6rem .8rem; margin: 0; cursor: pointer; }
+.aiproofread-presets input[type=radio] { margin-top: .2rem; }
+.aiproofread-preset-body { display: flex; flex-direction: column; gap: .3rem; }
+.aiproofread-preset-head { display: flex; align-items: center; gap: .5rem; }
+.aiproofread-preset-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.aiproofread-model { font-family: var(--bs-font-monospace, monospace); font-size: .85em; color: #333; }
+.aiproofread-chip { display: inline-block; padding: .1rem .45rem; border-radius: 10px; background: #eef0f2; color: #555; font-size: .78em; }
+
+/* Custom config: revealed only while the Benutzerdefiniert radio is the current
+   selection — reactive to the unsaved choice via :has(), no JavaScript. */
+.aiproofread-custom { margin: 0 .8rem .8rem 2rem; border: 1px solid #d0d0d0; border-radius: 3px; padding: .8rem; display: none; }
+.aiproofread-presets li:has(input[value="custom"]:checked) .aiproofread-custom { display: block; }
+/* Fallback for browsers without :has(): can't react, so always show the fields. */
+@supports not selector(:has(*)) { .aiproofread-custom { display: block; } }
+.aiproofread-custom .form-row { margin-bottom: 1.4rem; }
+.aiproofread-custom .form-row > label { display: block; font-weight: 600; margin-bottom: .15rem; padding: 0 0 .2rem; }
+.aiproofread-custom input[type=text], .aiproofread-custom input[type=number], .aiproofread-custom select { width: 100%; max-width: 28rem; }
+.aiproofread-custom .form-check { padding: 0; margin-top: .8rem; }
+.aiproofread-custom .form-check label { font-weight: normal; display: inline; cursor: pointer; padding: 0; }
+.aiproofread-custom .field-hint { color: #6c757d; font-size: .82em; margin: .6rem 0 0; max-width: 40rem; }
+</style>
+
+<h1>KI-Lektorat — Einstellungen</h1>
+
+<p>
+    Auswahl des verwendeten KI-Modells. Das gewählte Modell gilt <strong>für die gesamte Installation</strong>
+    (alle Durchläufe aller Redakteur:innen). Beeinflusst die Qualität der Ergebnisse und die verbundenen Kosten.
+</p>
+
+<form method="post" action="{formUrl}">
+    <h2>Aktives Modell</h2>
+    <ul class="aiproofread-presets">
+        <f:for each="{presets}" as="preset">
+            <li class="aiproofread-preset{f:if(condition: preset.active, then: ' is-active')}">
+                <label>
+                    <input type="radio" name="preset" value="{preset.key}"<f:if condition="{preset.active}"> checked="checked"</f:if> />
+                    <span class="aiproofread-preset-body">
+                        <span class="aiproofread-preset-head">
+                            <span>{preset.label}</span>
+                            <f:if condition="{preset.active}"><span class="badge bg-success">aktiv</span></f:if>
+                        </span>
+                        <span class="aiproofread-preset-meta">
+                            <f:if condition="{preset.details.model}"><span class="aiproofread-model">{preset.details.model}</span></f:if>
+                            <f:for each="{preset.details.chips}" as="chip"><span class="aiproofread-chip">{chip}</span></f:for>
+                        </span>
+                    </span>
+                </label>
+
+                <f:if condition="{preset.key} == 'custom'">
+                    <div class="aiproofread-custom">
+                        <div class="form-row">
+                            <label for="customModel">Modell (OpenRouter-Slug)</label>
+                            <input type="text" id="customModel" name="customModel" value="{custom.model}" />
+                            <div class="form-check">
+                                <label>
+                                    <input type="checkbox" name="customReasoning" value="1"<f:if condition="{custom.reasoning}"> checked="checked"</f:if> />
+                                    Reasoning anfordern
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="customMaxTokens">Max. Tokens (0 = automatisch)</label>
+                            <input type="number" id="customMaxTokens" name="customMaxTokens" min="0" value="{custom.maxTokens}" />
+                        </div>
+                        <div class="form-row">
+                            <label for="customStructuredOutput">Structured Output</label>
+                            <select id="customStructuredOutput" name="customStructuredOutput">
+                                <f:for each="{structuredOutputOptions}" as="option">
+                                    <option value="{option.value}"<f:if condition="{option.selected}"> selected="selected"</f:if>>{option.label}</option>
+                                </f:for>
+                            </select>
+                            <p class="field-hint">
+                                Art des angefragten Modell-Outputs.<br>
+                                <strong>JSON-Schema</strong> erzwingt die exakte Antwortstruktur (empfohlen).<br>
+                                <strong>JSON-Objekt</strong> garantiert nur gültiges JSON; die Struktur ergibt sich aus dem Prompt.<br>
+                                <strong>Nur Prompt</strong> bietet keine Output-Garantieren. Für Modelle,
+                                welche <code>response_format</code> nicht unterstützen.
+                            </p>
+                        </div>
+                        <div class="form-row">
+                            <label for="customPinProvider">Spezifischen Provider wählen (leer = Standard-Routing)</label>
+                            <input type="text" id="customPinProvider" name="customPinProvider" value="{custom.pinProvider}" />
+                        </div>
+                    </div>
+                </f:if>
+            </li>
+        </f:for>
+    </ul>
+
+    <button type="submit" class="btn btn-primary">Speichern</button>
+</form>
+
+</html>

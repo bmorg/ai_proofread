@@ -19,23 +19,10 @@ baseUrl = https://openrouter.ai/api/v1
 # cat=provider/general; type=string; label=API key: The API key.
 apiKey =
 
-# cat=provider/general; type=string; label=Model ID: The model name/id, e.g. anthropic/claude-opus-4.8.
-model = anthropic/claude-opus-4.8
-
-# cat=provider/general; type=string; label=Provider order (OpenRouter): Comma-separated provider slugs to prefer, e.g. "anthropic". Routes to providers that enforce valid structured-output JSON over ones that don't. Leave empty for OpenRouter's default routing.
-providerOrder = anthropic
-
-# cat=provider/general; type=boolean; label=Allow fallbacks (OpenRouter): Only applies when a provider order is set. Off = serve the request ONLY by the listed providers (a clear error if none is available, instead of silently routing to a provider that emits invalid JSON). On = fall back to other providers when the listed ones are unavailable.
-allowFallbacks = 0
-
-# cat=provider/general; type=options[JSON schema (strict)=json_schema,JSON object=json_object,Prompt only=prompt]; label=Structured output: Use "Prompt only" for servers without json_schema support (many local models).
-structuredOutput = json_schema
-
-# cat=provider/general; type=boolean; label=Reasoning: Enable reasoning/thinking (not available for all models/providers). Improves recall but adds cost and latency.
-reasoning = 1
-
-# cat=provider/general; type=int+; label=Max tokens (output): 0 = automatic (8000, or 32000 when reasoning is on; reasoning tokens count against this, so a low value truncates the answer). Also a safeguard: caps a model that runs rogue (e.g. repetition loops) — a hit cap will be shown as an error.
-maxTokens = 0
+# The model and its coupled params (model id, reasoning, max tokens, structured
+# output mode, provider routing) are no longer configured here: they live in the
+# shipped presets (Bmorg\AiProofread\Enum\ModelPreset) and are switched site-wide
+# from the admin-only "Einstellungen" view in the KI-Lektorat module.
 
 # cat=categories/general; type=boolean; label=Check the text for gender-inclusive language ("Gendern") as a category.
 enableGenderInclusiveLanguage = 1
@@ -43,5 +30,5 @@ enableGenderInclusiveLanguage = 1
 # cat=categories/general; type=string; label=Gender-inclusive default: The preferred style for gender-inclusive language, e.g. "Doppelpunkt (z.B. Nutzer:innen)" or "generisches Maskulinum".
 genderInclusiveStyle = Doppelpunkt (z.B. Nutzer:innen)
 
-# cat=categories/general; type=boolean; label=Check style: include optional stylistic suggestions (noisier).
+# cat=categories/general; type=boolean; label=Check style: Include optional stylistic suggestions (noisier).
 enableStyle = 0

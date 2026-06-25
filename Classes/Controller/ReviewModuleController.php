@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Bmorg\AiProofread\Controller;
 
 use Bmorg\AiProofread\Enum\Category;
+use Bmorg\AiProofread\Enum\ModelPreset;
 use Bmorg\AiProofread\Enum\ReviewStatus;
+use Bmorg\AiProofread\Service\ActivePreset;
 use Bmorg\AiProofread\Service\LogRepository;
 use Bmorg\AiProofread\Service\ProofreadingService;
 use Bmorg\AiProofread\Service\QueueRepository;
@@ -21,6 +23,8 @@ use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Fluid\View\StandaloneView;
@@ -47,6 +51,7 @@ final class ReviewModuleController
     private const VIEW_CURRENT = 'current';
     private const VIEW_REPORTS = 'reports';
     private const VIEW_HISTORY = 'history';
+    private const VIEW_SETTINGS = 'settings';
 
     public function __construct(
         private readonly ModuleTemplateFactory $moduleTemplateFactory,
@@ -57,6 +62,8 @@ final class ReviewModuleController
         private readonly ReportRepository $reports,
         private readonly QueueRepository $queue,
         private readonly LogRepository $log,
+        private readonly ActivePreset $activePreset,
+        private readonly FlashMessageService $flashMessageService,
     ) {
     }
 
@@ -85,6 +92,38 @@ final class ReviewModuleController
                     $this->renderView('Review/Current.html', ['noAccess' => true])
                 );
             }
+        }
+
+        // Save the site-wide model preset from the Einstellungen form (admins only
+        // — it changes the model, cost and latency for everyone's runs). POST, then
+        // redirect (PRG) back to the settings view.
+        if ($isAdmin && $request->getMethod() === 'POST') {
+            $body = \is_array($request->getParsedBody()) ? $request->getParsedBody() : [];
+            // Persist the custom values on every submit (setCustom normalizes them),
+            // so the admin's edits are remembered even while another preset is active
+            // and apply the moment they switch to "Benutzerdefiniert". An unchecked
+            // checkbox is simply absent from the body.
+            $this->activePreset->setCustom([
+                'model' => $body['customModel'] ?? '',
+                'reasoning' => isset($body['customReasoning']),
+                'maxTokens' => $body['customMaxTokens'] ?? 0,
+                'structuredOutput' => $body['customStructuredOutput'] ?? '',
+                'pinProvider' => $body['customPinProvider'] ?? '',
+            ]);
+            $candidate = ModelPreset::tryFrom((string)($body['preset'] ?? ''));
+            if ($candidate !== null) {
+                $this->activePreset->set($candidate);
+            }
+            // Confirm the save across the PRG redirect. storeInSession survives the
+            // redirect; the named storeInSession arg lets us skip the severity arg,
+            // whose type differs across v11 (int) / v13 (ContextualFeedbackSeverity)
+            // — so this stays version-neutral and defaults to OK.
+            $this->flashMessageService->getMessageQueueByIdentifier()->enqueue(
+                new FlashMessage('Modell-Einstellungen gespeichert.', '', storeInSession: true)
+            );
+            return new RedirectResponse(
+                (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'view' => self::VIEW_SETTINGS])
+            );
         }
 
         // Mutating actions (run/mark): do, then redirect (PRG) to the clean URL.
@@ -136,10 +175,11 @@ final class ReviewModuleController
         if ($error !== '') {
             $view = self::VIEW_CURRENT;
         }
-        // The API-Verlauf exposes the global audit log (full page content + cost of
-        // every call, system-wide) — admins only. A non-admin requesting it (stale
-        // link/hand-crafted URL) falls back to the current view.
-        if ($view === self::VIEW_HISTORY && !$isAdmin) {
+        // Admin-only views: the API-Verlauf (global audit log — full page content +
+        // cost of every call, system-wide) and Einstellungen (the site-wide model
+        // setting). A non-admin requesting either (stale link/hand-crafted URL)
+        // falls back to the current view.
+        if (\in_array($view, [self::VIEW_HISTORY, self::VIEW_SETTINGS], true) && !$isAdmin) {
             $view = self::VIEW_CURRENT;
         }
 
@@ -147,6 +187,7 @@ final class ReviewModuleController
 
         return match ($view) {
             self::VIEW_HISTORY => $this->historyResponse($request, $moduleTemplate, $pageUid, $isAdmin),
+            self::VIEW_SETTINGS => $this->settingsResponse($moduleTemplate, $pageUid),
             self::VIEW_REPORTS => $this->reportsResponse($moduleTemplate, $pageUid, $review, $status, $jobPending, $jobError),
             default => $this->currentResponse($request, $moduleTemplate, $pageUid, $latestReport, $review, $status, $error, $jobPending, $jobError),
         };
@@ -164,9 +205,10 @@ final class ReviewModuleController
             self::VIEW_CURRENT => 'Aktueller Report',
             self::VIEW_REPORTS => 'Report-Verlauf',
         ];
-        // API-Verlauf is admin-only (see handleRequest).
+        // API-Verlauf and Einstellungen are admin-only (see handleRequest).
         if ($isAdmin) {
             $items[self::VIEW_HISTORY] = 'API-Verlauf';
+            $items[self::VIEW_SETTINGS] = 'Einstellungen';
         }
 
         foreach ($items as $key => $title) {
@@ -181,6 +223,80 @@ final class ReviewModuleController
         }
 
         $menuRegistry->addMenu($menu);
+    }
+
+    // -- Einstellungen view (admin-only) -------------------------------------
+
+    /**
+     * The site-wide model preset: a curated list of shipped presets, the active
+     * one selected. Submitting (POST) is handled in handleRequest. Admin-only
+     * (the model affects every editor's runs, cost and latency).
+     */
+    private function settingsResponse(ModuleTemplate $moduleTemplate, int $pageUid): ResponseInterface
+    {
+        $active = $this->activePreset->current();
+        $custom = $this->activePreset->customSettings();
+
+        $presets = [];
+        foreach (ModelPreset::cases() as $preset) {
+            $presets[] = [
+                'key' => $preset->value,
+                'label' => $preset->label(),
+                'active' => $preset === $active,
+                // So the admin sees exactly what each preset changes before activating.
+                // Custom pins nothing in the enum — describe its stored values instead.
+                'details' => $this->summarizeSettings(
+                    $preset === ModelPreset::Custom ? $custom : $preset->settings()
+                ),
+            ];
+        }
+
+        $structuredOutputOptions = [];
+        foreach (['json_schema' => 'JSON-Schema', 'json_object' => 'JSON-Objekt', 'prompt' => 'Nur Prompt'] as $value => $label) {
+            $structuredOutputOptions[] = [
+                'value' => $value,
+                'label' => $label,
+                'selected' => $custom['structuredOutput'] === $value,
+            ];
+        }
+
+        return $this->moduleResponse($moduleTemplate, $this->renderView('Review/Settings.html', [
+            // The form posts back to this same view; UriBuilder adds the route token.
+            'formUrl' => (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'view' => self::VIEW_SETTINGS]),
+            'presets' => $presets,
+            'custom' => $custom,
+            'structuredOutputOptions' => $structuredOutputOptions,
+        ]));
+    }
+
+    /**
+     * Summarize the settings a preset pins for the UI: the model slug (shown
+     * prominently) plus a list of short chips for the remaining params, so the
+     * admin can scan exactly what each preset changes.
+     *
+     * @param array<string, mixed> $settings
+     * @return array{model: string, chips: list<string>}
+     */
+    private function summarizeSettings(array $settings): array
+    {
+        $maxTokens = (int)($settings['maxTokens'] ?? 0);
+        $provider = trim((string)($settings['pinProvider'] ?? ''));
+        $structured = match ((string)($settings['structuredOutput'] ?? '')) {
+            'json_schema' => 'JSON-Schema',
+            'json_object' => 'JSON-Objekt',
+            'prompt' => 'Nur Prompt',
+            default => (string)($settings['structuredOutput'] ?? ''),
+        };
+
+        return [
+            'model' => trim((string)($settings['model'] ?? '')),
+            'chips' => array_values(array_filter([
+                ($settings['reasoning'] ?? false) ? 'Reasoning' : 'kein Reasoning',
+                $maxTokens === 0 ? 'Tokens: auto' : $maxTokens . ' Tokens',
+                $structured,
+                $provider === '' ? 'Standard-Routing' : 'Provider: ' . $provider,
+            ])),
+        ];
     }
 
     // -- Aktueller Report view ----------------------------------------------
@@ -291,6 +407,9 @@ final class ReviewModuleController
                 'pageFindings' => \count($report['pageFindings'] ?? []),
                 'other' => \count($report['other'] ?? []),
                 'cost' => $this->formatCost((float)$run['cost_usd']),
+                // Shown as a tooltip on the Kosten cell. Empty for an empty-text
+                // run (no LLM call) and legacy rows recorded before model was kept.
+                'model' => (string)($run['model'] ?? ''),
                 'url' => (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'view' => self::VIEW_CURRENT, 'reportUid' => (int)$run['uid']]),
             ];
         }
@@ -638,6 +757,11 @@ final class ReviewModuleController
      * and were removed in v13, where assign('content', …) + renderResponse() (a
      * thin wrapper template, ModuleBody.html) is used instead. Branching on the
      * method that exists keeps one code path working across v11–v13.
+     *
+     * Flash messages: the v11/12 renderContent() chrome renders the default queue
+     * automatically; the v13 ModuleBody.html wrapper does not, so it renders the
+     * default queue explicitly (see that template) — without it the storeInSession
+     * Einstellungen save-confirmation would be dropped on v13.
      */
     private function moduleResponse(ModuleTemplate $moduleTemplate, string $html): ResponseInterface
     {
