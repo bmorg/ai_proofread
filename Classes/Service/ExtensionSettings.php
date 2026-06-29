@@ -23,6 +23,41 @@ final class ExtensionSettings
 {
     private const EXTENSION_KEY = 'ai_proofread';
 
+    /**
+     * Runtime fallbacks for keys whose default is NOT the type's zero value (here:
+     * categories that are on by default). ExtensionConfiguration::get() does not
+     * apply ext_conf_template.txt defaults at read time — they are persisted only on
+     * install-sync or when the admin saves the Extension Configuration form — so a
+     * key absent from the stored config throws a missing-key exception. Without a
+     * fallback that collapses to null → (bool) false and silently disables the
+     * category despite its template default of 1.
+     *
+     * Scope — this fires only for the narrow "key absent from stored config" edge:
+     *   - the option was added to the template after the extension was already
+     *     configured, and no sync/save has run since (stored array lacks the key); or
+     *   - the extension is loaded but its config was never synced/saved at all.
+     * It does NOT affect a fresh, properly-installed instance (install-sync writes the
+     * template default, so get() returns that and never consults this), nor an install
+     * that already persisted the key — including a stored 0: an explicit "off" wins,
+     * because sync merges only missing keys and never overwrites an existing value. So
+     * this is a safety net for the missing-key edge, not the general default mechanism
+     * — the template is. A key whose template default IS the type's zero value (0, '',
+     * false) does not belong here: its inline `?? 0` / `?? ''` fallback already
+     * reproduces the template default, so there is nothing to mirror.
+     *
+     * Entries mirror the non-zero defaults in ext_conf_template.txt; keep the two in
+     * sync (the template drives the admin form + install-sync, this drives the runtime
+     * read of an absent key).
+     *
+     * @var array<string, mixed>
+     */
+    private const DEFAULTS = [
+        'baseUrl' => 'https://openrouter.ai/api/v1',
+        'enableStyle' => true,
+        'enableGenderInclusiveLanguage' => true,
+        'genderInclusiveStyle' => 'Doppelpunkt (z.B. Nutzer:innen)',
+    ];
+
     public function __construct(
         private readonly ExtensionConfiguration $extensionConfiguration,
         private readonly ActivePreset $activePreset,
@@ -31,7 +66,9 @@ final class ExtensionSettings
 
     /**
      * The configured value for $key: the active preset's value when it pins this
-     * key, otherwise the base ext-config value (or null if unset/unreadable).
+     * key, otherwise the base ext-config value. A key that is unset/unreadable
+     * returns its {@see DEFAULTS} entry, or null when it has none (so callers can
+     * apply their own default).
      */
     public function get(string $key): mixed
     {
@@ -43,7 +80,7 @@ final class ExtensionSettings
         try {
             return $this->extensionConfiguration->get(self::EXTENSION_KEY, $key);
         } catch (\Throwable) {
-            return null;
+            return self::DEFAULTS[$key] ?? null;
         }
     }
 }

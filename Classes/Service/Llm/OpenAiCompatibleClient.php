@@ -26,7 +26,7 @@ final class OpenAiCompatibleClient extends AbstractHttpLlmClient
 
     protected function buildCall(string $systemPrompt, string $userText, array $jsonSchema): HttpLlmCall
     {
-        $baseUrl = rtrim((string)($this->config('baseUrl') ?? ''), '/');
+        $baseUrl = rtrim((string)$this->config('baseUrl'), '/'); // default in ExtensionSettings::DEFAULTS
         $model = (string)($this->config('model') ?? '');
         $mode = (string)($this->config('structuredOutput') ?: 'json_schema');
         $reasoning = (bool)$this->config('reasoning');

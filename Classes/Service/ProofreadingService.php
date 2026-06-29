@@ -265,8 +265,9 @@ final class ProofreadingService
      */
     public function enabledCategories(): array
     {
+        // Both default to on when unset — see ExtensionSettings::DEFAULTS.
         $enableStyle = (bool)$this->config('enableStyle');
-        $enableGenderInclusiveLanguage = (bool)($this->config('enableGenderInclusiveLanguage') ?? true);
+        $enableGenderInclusiveLanguage = (bool)$this->config('enableGenderInclusiveLanguage');
 
         return array_values(array_filter(Category::ordered(), static function (Category $c) use ($enableStyle, $enableGenderInclusiveLanguage): bool {
             return match ($c) {
@@ -285,7 +286,9 @@ final class ProofreadingService
             $lines[] = sprintf('- %s (%s)', $c->label(), $c->value);
         }
         $categoryIds = implode(', ', array_map(static fn (Category $c): string => $c->value, $categories));
-        $genderInclusiveStyle = (string)($this->config('genderInclusiveStyle') ?: 'Doppelpunkt (z.B. Nutzer:innen)');
+        // Missing-key default lives in ExtensionSettings::DEFAULTS; an explicit empty
+        // value is respected (the admin cleared it — the settings label names the default).
+        $genderInclusiveStyle = (string)$this->config('genderInclusiveStyle');
 
         // Optional site description so integrators can give the model context about
         // the kind of content it proofreads (e.g. "ein privates Weblog").
