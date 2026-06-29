@@ -112,7 +112,7 @@ Because a run is N+1 reasoning requests (concurrent, but still minutes of wall-c
 
 ### Categories
 
-`Enum\Category` — fixed display order (`sort()`): **Rechtschreibung → Zeichensetzung → Grammatik → Gendern → Stil**. Drives report section order, the Report-Verlauf columns (`abbreviation()`: Rechtsch./Typ./Gramm. — **gender-inclusive language *and* style are excluded** there: by prompt design neither is a localized finding (gender-inclusive language → pageFinding, style → the free-text `other` bucket), so their columns would always be 0 (style is already reflected in the Sonstiges count); a run that had a category disabled shows "–" for it, vs. "0" = checked/none), and the structured-output schema enum. Gendern and Stil are config-toggleable (Stil off by default; Gendern policy/form configurable). The Aktueller Report view shows whatever is in the stored report (all categories), regardless of current config.
+`Enum\Category` — fixed display order (`sort()`): **Rechtschreibung → Zeichensetzung → Grammatik → Gendern → Stil**. Drives report section order, the Report-Verlauf columns (`abbreviation()`: Rechtsch./Typ./Gramm. — **gender-inclusive language *and* style are excluded** there: by prompt design neither is a localized finding (gender-inclusive language → pageFinding, style → the free-text `other` bucket), so their columns would always be 0 (style is already reflected in the Sonstiges count); a run that had a category disabled shows "–" for it, vs. "0" = checked/none), and the structured-output schema enum. Gendern and Stil are config-toggleable (both on by default; Gendern policy/form configurable). The Aktueller Report view shows whatever is in the stored report (all categories), regardless of current config.
 
 ### Audit log
 

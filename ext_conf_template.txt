@@ -31,4 +31,4 @@ enableGenderInclusiveLanguage = 1
 genderInclusiveStyle = Doppelpunkt (z.B. Nutzer:innen)
 
 # cat=categories/general; type=boolean; label=Check style: Include optional stylistic suggestions (noisier).
-enableStyle = 0
+enableStyle = 1
