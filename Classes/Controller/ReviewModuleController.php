@@ -46,8 +46,11 @@ use TYPO3\CMS\Fluid\View\StandaloneView;
  * {@see moduleResponse()}): v11/12 use setContent()/renderContent(), v13 (where
  * those were removed) uses assign('content', …) + renderResponse().
  *
- * Access: the API-Verlauf (global audit log) is admin-only; every other view and
- * the run/mark actions are gated by read permission on the requested page.
+ * Access: the API-Verlauf (global audit log) and Einstellungen are admin-only;
+ * every other view is gated by read permission on the requested page. Mutating
+ * actions — run (a paid LLM job), mark (sign-off), and the finding decisions
+ * apply/dismiss/manual/reopen — additionally require content-edit permission on
+ * the page; for read-only users the report is visible but action-free.
  */
 final class ReviewModuleController
 {
@@ -83,9 +86,13 @@ final class ReviewModuleController
         $moduleTemplate->setTitle('KI-Lektorat');
 
         // Page-level access gate: module access is "user", so without this any
-        // editor could set ?id=<any page> to read content outside their mounts,
-        // enqueue paid runs, or sign a page off. Refuse before any read/run/mark.
-        // (Admins pass; getPagePermsClause() returns "1=1" for them.)
+        // editor could set ?id=<any page> to read content outside their mounts.
+        // Refuse before any read. (Admins pass; getPagePermsClause() returns "1=1"
+        // for them.) Viewing needs page-show only; every *mutating* action (run,
+        // mark, apply/dismiss/manual/reopen) additionally requires content-edit
+        // permission on the page — a read-only editor must not enqueue paid runs,
+        // sign a page off, or decide findings ($canEdit below).
+        $canEdit = false;
         if ($pageUid > 0) {
             $pageRecord = BackendUtility::readPageAccess(
                 $pageUid,
@@ -97,6 +104,7 @@ final class ReviewModuleController
                     $this->renderView('Review/Current.html', ['noAccess' => true])
                 );
             }
+            $canEdit = $GLOBALS['BE_USER']->doesUserHaveAccess($pageRecord, Permission::CONTENT_EDIT);
         }
 
         // Save the site-wide model preset from the Einstellungen form (admins only
@@ -132,9 +140,13 @@ final class ReviewModuleController
         }
 
         // Mutating actions (run/mark): do, then redirect (PRG) to the clean URL.
+        // Content-edit permission required — the buttons are hidden for read-only
+        // users, so reaching this without it means a stale/hand-crafted URL.
         $error = '';
         $action = (string)($params['action'] ?? '');
-        if ($pageUid > 0 && \in_array($action, ['run', 'mark'], true)) {
+        if ($pageUid > 0 && \in_array($action, ['run', 'mark'], true) && !$canEdit) {
+            $error = 'Keine Berechtigung, Inhalte dieser Seite zu bearbeiten.';
+        } elseif ($pageUid > 0 && \in_array($action, ['run', 'mark'], true)) {
             try {
                 if ($action === 'run') {
                     // A run is N+1 LLM requests — too slow to do inline; enqueue and
@@ -161,7 +173,7 @@ final class ReviewModuleController
         // progressive-enhancement JS (X-Requested-With) they return JSON so the card
         // updates without a reload.
         if ($pageUid > 0 && \in_array($action, ['apply', 'dismiss', 'reopen', 'manual'], true)) {
-            return $this->handleFindingAction($request, $pageUid, $beUser);
+            return $this->handleFindingAction($request, $pageUid, $beUser, $canEdit);
         }
 
         $latestReport = $pageUid > 0 ? $this->reports->findLatestByPage($pageUid) : null;
@@ -202,8 +214,8 @@ final class ReviewModuleController
         return match ($view) {
             self::VIEW_HISTORY => $this->historyResponse($request, $moduleTemplate, $pageUid, $isAdmin),
             self::VIEW_SETTINGS => $this->settingsResponse($moduleTemplate, $pageUid),
-            self::VIEW_REPORTS => $this->reportsResponse($moduleTemplate, $pageUid, $review, $status, $jobPending, $jobError),
-            default => $this->currentResponse($request, $moduleTemplate, $pageUid, $latestReport, $review, $status, $error, $jobPending, $jobError),
+            self::VIEW_REPORTS => $this->reportsResponse($moduleTemplate, $pageUid, $review, $status, $jobPending, $jobError, $canEdit),
+            default => $this->currentResponse($request, $moduleTemplate, $pageUid, $latestReport, $review, $status, $error, $jobPending, $jobError, $canEdit),
         };
     }
 
@@ -246,8 +258,13 @@ final class ReviewModuleController
      * dismiss, or reopen. Resolves the finding from its run + index, performs the
      * action, then either returns JSON (when called via the enhancement JS) or
      * PRG-redirects back to Aktueller Report with a confirmation flash.
+     *
+     * All finding decisions require content-edit permission on the page
+     * ($canEdit, checked by the caller): dismiss/manual/reopen shape what other
+     * editors see as resolved, and apply writes content — a read-only user gets
+     * a clean refusal (the action links aren't rendered for them anyway).
      */
-    private function handleFindingAction(ServerRequestInterface $request, int $pageUid, int $beUser): ResponseInterface
+    private function handleFindingAction(ServerRequestInterface $request, int $pageUid, int $beUser, bool $canEdit): ResponseInterface
     {
         $params = $request->getQueryParams();
         $action = (string)($params['action'] ?? '');
@@ -257,11 +274,11 @@ final class ReviewModuleController
 
         $ok = false;
         $state = 'open';
-        $message = 'Hinweis nicht gefunden.';
+        $message = $canEdit ? 'Hinweis nicht gefunden.' : 'Keine Berechtigung, Inhalte dieser Seite zu bearbeiten.';
 
         // findByUidForPage enforces page ownership — a defence so a hand-crafted
         // reportUid can't act on another (non-access-gated) page's content.
-        $run = $reportUid > 0 ? $this->reports->findByUidForPage($reportUid, $pageUid) : null;
+        $run = ($canEdit && $reportUid > 0) ? $this->reports->findByUidForPage($reportUid, $pageUid) : null;
         if ($run !== null && $index >= 0) {
             $report = $this->decodeReport($run);
             $findings = \is_array($report['findings'] ?? null) ? $report['findings'] : [];
@@ -304,7 +321,9 @@ final class ReviewModuleController
         }
 
         if ($isAjax) {
-            $progress = $this->findingProgress($reportUid, $this->decodeReport($run));
+            // No progress for a refused (read-only) request: $run was never loaded,
+            // so a computed 0/0 would overwrite the real progress line in the JS.
+            $progress = $canEdit ? $this->findingProgress($reportUid, $this->decodeReport($run)) : null;
             return new JsonResponse([
                 'ok' => $ok,
                 'state' => $state,
@@ -436,7 +455,7 @@ final class ReviewModuleController
      * @param array<string, mixed>|null $latestReport
      * @param array<string, mixed>|null $review
      */
-    private function currentResponse(ServerRequestInterface $request, ModuleTemplate $moduleTemplate, int $pageUid, ?array $latestReport, ?array $review, ReviewStatus $status, string $error, bool $jobPending, string $jobError): ResponseInterface
+    private function currentResponse(ServerRequestInterface $request, ModuleTemplate $moduleTemplate, int $pageUid, ?array $latestReport, ?array $review, ReviewStatus $status, string $error, bool $jobPending, string $jobError, bool $canEdit): ResponseInterface
     {
         if ($pageUid <= 0) {
             return $this->moduleResponse($moduleTemplate, $this->renderView('Review/Current.html', ['noPage' => true]));
@@ -454,17 +473,18 @@ final class ReviewModuleController
 
         $pageRecord = BackendUtility::getRecord('pages', $pageUid, 'uid,title');
 
-        $this->addProofreadButtons($moduleTemplate, $pageUid, $latestReport !== null, $jobPending);
+        $this->addProofreadButtons($moduleTemplate, $pageUid, $latestReport !== null, $jobPending, $canEdit);
 
         $report = $this->decodeReport($run);
         $proofedAt = ($review !== null && (int)($review['proofed_at'] ?? 0) > 0) ? BackendUtility::datetime((int)$review['proofed_at']) : '';
 
         $shownReportUid = (int)($run['uid'] ?? 0);
         $states = $shownReportUid > 0 ? $this->findingStates->statesFor($shownReportUid) : [];
-        // Whether to offer one-click apply at all: the user must be allowed to
-        // modify content elements (DataHandler enforces per-record edit too).
+        // Whether to offer one-click apply at all: content-edit permission on the
+        // page plus the table-level modify right (DataHandler enforces per-record
+        // edit too). All other finding actions need $canEdit alone.
         $beUserObj = $GLOBALS['BE_USER'] ?? null;
-        $canApply = $beUserObj !== null && $beUserObj->check('tables_modify', 'tt_content');
+        $canApply = $canEdit && $beUserObj !== null && $beUserObj->check('tables_modify', 'tt_content');
         $progress = $this->findingProgress($shownReportUid, $report);
 
         return $this->moduleResponse($moduleTemplate, $this->renderView('Review/Current.html', [
@@ -487,7 +507,7 @@ final class ReviewModuleController
             'progressTotal' => $progress['total'],
             'progressDone' => $progress['done'],
             'progressOpen' => $progress['open'],
-            'sections' => $this->buildReportSections($report, $pageUid, $shownReportUid, $states, $canApply),
+            'sections' => $this->buildReportSections($report, $pageUid, $shownReportUid, $states, $canApply, $canEdit),
             'pageFindings' => $this->buildPageFindings($report),
             'other' => $this->buildOther($report),
             'error' => $error,
@@ -499,14 +519,14 @@ final class ReviewModuleController
     /**
      * @param array<string, mixed>|null $review
      */
-    private function reportsResponse(ModuleTemplate $moduleTemplate, int $pageUid, ?array $review, ReviewStatus $status, bool $jobPending, string $jobError): ResponseInterface
+    private function reportsResponse(ModuleTemplate $moduleTemplate, int $pageUid, ?array $review, ReviewStatus $status, bool $jobPending, string $jobError, bool $canEdit): ResponseInterface
     {
         if ($pageUid <= 0) {
             return $this->moduleResponse($moduleTemplate, $this->renderView('Review/Reports.html', ['noPage' => true]));
         }
 
         $latest = $this->reports->findLatestByPage($pageUid);
-        $this->addProofreadButtons($moduleTemplate, $pageUid, $latest !== null, $jobPending);
+        $this->addProofreadButtons($moduleTemplate, $pageUid, $latest !== null, $jobPending, $canEdit);
 
         // Sign-off banner: who marked the page geprüft, and when.
         $proofed = $status === ReviewStatus::Proofed && $review !== null;
@@ -578,7 +598,7 @@ final class ReviewModuleController
         ]));
     }
 
-    private function addProofreadButtons(ModuleTemplate $moduleTemplate, int $pageUid, bool $hasReport, bool $queued): void
+    private function addProofreadButtons(ModuleTemplate $moduleTemplate, int $pageUid, bool $hasReport, bool $queued, bool $canEdit): void
     {
         $buttonBar = $moduleTemplate->getDocHeaderComponent()->getButtonBar();
 
@@ -586,22 +606,25 @@ final class ReviewModuleController
             // A run is already queued/running. Replace the run trigger with an
             // in-progress affordance: a spinner labelled "wird erstellt", whose
             // link just reloads the page to check status (re-running would no-op
-            // anyway — enqueue() dedupes per page).
+            // anyway — enqueue() dedupes per page). Shown to read-only users too:
+            // it mutates nothing and explains why no result is there yet.
             $runButton = $buttonBar->makeLinkButton()
                 ->setHref((string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid]))
                 ->setTitle('Report wird erstellt …')
                 ->setShowLabelText(true)
                 ->setIcon($this->iconFactory->getIcon('spinner-circle', Icon::SIZE_SMALL));
-        } else {
+            $buttonBar->addButton($runButton);
+        } elseif ($canEdit) {
+            // Run and mark mutate (paid LLM run / sign-off) — content-edit only.
             $runButton = $buttonBar->makeLinkButton()
                 ->setHref((string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'run']))
                 ->setTitle($hasReport ? 'Neuen Report erstellen' : 'Report erstellen')
                 ->setShowLabelText(true)
                 ->setIcon($this->iconFactory->getIcon('aiproofread-robot', Icon::SIZE_SMALL));
+            $buttonBar->addButton($runButton);
         }
-        $buttonBar->addButton($runButton);
 
-        if ($hasReport) {
+        if ($hasReport && $canEdit) {
             $markButton = $buttonBar->makeLinkButton()
                 ->setHref((string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'mark']))
                 ->setTitle('Als geprüft markieren')
@@ -646,7 +669,7 @@ final class ReviewModuleController
      * @param array<int, string> $states finding index => stored review status
      * @return array<int, array{label: string, findings: array<int, array<string, mixed>>}>
      */
-    private function buildReportSections(array $report, int $pageUid, int $reportUid, array $states, bool $canApply): array
+    private function buildReportSections(array $report, int $pageUid, int $reportUid, array $states, bool $canApply, bool $canEdit): array
     {
         $findings = $report['findings'] ?? [];
         if (!\is_array($findings)) {
@@ -698,9 +721,13 @@ final class ReviewModuleController
                 $f['applyUrl'] = ($locate?->applicable ?? false)
                     ? (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'apply', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT])
                     : '';
-                $f['dismissUrl'] = (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'dismiss', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT]);
-                $f['manualUrl'] = (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'manual', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT]);
-                $f['reopenUrl'] = (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'reopen', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT]);
+                // Finding decisions (dismiss/manual/reopen) require content-edit
+                // permission; without it no action URLs are rendered — the report
+                // stays readable, the state badges still show. The template hides
+                // each action whose URL is empty.
+                $f['dismissUrl'] = $canEdit ? (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'dismiss', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT]) : '';
+                $f['manualUrl'] = $canEdit ? (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'manual', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT]) : '';
+                $f['reopenUrl'] = $canEdit ? (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'reopen', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT]) : '';
 
                 $items[] = $f;
             }

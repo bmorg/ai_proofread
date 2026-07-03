@@ -3,6 +3,9 @@
 ## [0.3.0] - 2026-07-04
 
  - Added ability to **automatically apply** fixes from the report UI.
+ - Mutating actions (run report, mark as proofed, apply/dismiss findings) now
+   require **content-edit permission** on the page; users with read-only access
+   can view reports but no longer trigger paid runs or sign pages off.
  - Fixed prompt building for gender-inclusive language.
  - Some UI fixes.
  - Fixed stale task detection for long running tasks (heartbeat).

@@ -194,9 +194,16 @@
                         <f:if condition="{finding.editUrl}">
                             <a class="act-edit btn btn-sm btn-default" href="{finding.editUrl}">Inhaltselement bearbeiten</a>
                         </f:if>
-                        <a class="act-manual btn btn-sm btn-default" data-aiproofread-action="manual" href="{finding.manualUrl}">Manuell erledigt</a>
-                        <a class="act-dismiss btn btn-sm btn-default" data-aiproofread-action="dismiss" href="{finding.dismissUrl}">Verwerfen</a>
-                        <a class="act-reopen btn btn-sm btn-link" data-aiproofread-action="reopen" href="{finding.reopenUrl}">Wiederherstellen</a>
+                        <f:comment>Empty URLs = no content-edit permission: the report stays readable, decisions are hidden.</f:comment>
+                        <f:if condition="{finding.manualUrl}">
+                            <a class="act-manual btn btn-sm btn-default" data-aiproofread-action="manual" href="{finding.manualUrl}">Manuell erledigt</a>
+                        </f:if>
+                        <f:if condition="{finding.dismissUrl}">
+                            <a class="act-dismiss btn btn-sm btn-default" data-aiproofread-action="dismiss" href="{finding.dismissUrl}">Verwerfen</a>
+                        </f:if>
+                        <f:if condition="{finding.reopenUrl}">
+                            <a class="act-reopen btn btn-sm btn-link" data-aiproofread-action="reopen" href="{finding.reopenUrl}">Wiederherstellen</a>
+                        </f:if>
                         <span class="aiproofread-action-msg" role="status" aria-live="polite"></span>
                     </div>
                 </div>
