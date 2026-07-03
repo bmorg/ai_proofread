@@ -344,10 +344,10 @@ final class ProofreadingService
             '',
             'Strenge Regeln:',
             '- Eindeutige Rechtschreib-, Grammatik- und Zeichensetzungsfehler — auch die oben genannten Fehlerarten — gelten als '
-            . 'sicher und gehören IMMER in findings, auch wenn sie klein sind. „Unsicher" meint nur interpretative oder '
+            . 'sicher und gehören IMMER in findings, auch wenn sie klein sind. „Unsicher“ meint nur interpretative oder '
             . 'stilistische Zweifelsfälle; diese gehören nach other oder gar nicht in die Antwort.',
             '- Verändere niemals die Bedeutung und triff keine Annahmen über die gemeinte Bedeutung.',
-            '- Korrekte, auch umgangssprachlich akzeptable Formulierungen (z. B. „mehrmals die Woche") sind keine Fehler.',
+            '- Korrekte, auch umgangssprachlich akzeptable Formulierungen (z. B. „mehrmals die Woche“) sind keine Fehler.',
             '- Reine Stil-, Umformulierungs- oder Lesbarkeitsvorschläge gehören NICHT in findings, sondern in other.',
             // Only when the Gendern category is enabled — otherwise the schema enum
             // excludes "gender-inclusive-language" and this would route the model to a

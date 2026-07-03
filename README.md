@@ -6,7 +6,7 @@ AI-assisted proofreading for TYPO3 page content. Detects issues
 like spelling, punctuation, grammar, gender-inclusive language, style.
 Results are shown in a dedicated report.
 
-> **Status: 0.1.0 alpha.** Works and is being used in production, but has **not** been widely tested.
+> **Status: alpha.** Works and is in production use on TYPO3 11, but has **not** been widely tested.
 > See "Limitations" below.
 > If you are using this, please report any issues!
 
@@ -17,7 +17,7 @@ This is an early exploratory version with serious limitations:
 - **German content only.** The A.I. prompt was optimized over multiple iterations for German language content only!
 - **Single backend: OpenRouter** The general idea is to support generic OpenAI-compatible backends, but I have not been able to test this with anything other than OpenRouter yet. There can be serious limitations with availability and strictness of the required JSON output format that need to be tested.
 - **Single page language only.** So far, only l=0 can be checked.
-- Only **tested** on Typo3 11.
+- Only **tested** on Typo3 11. Targets Typo3 11-13, but 12-13 are thus untested.
 
 ## How it works
 
@@ -51,8 +51,9 @@ In the TYPO3 backend:
 
 ## Configuration
 
-Extension configuration (Admin Tools → Settings → Extension Configuration →
-`ai_proofread`):
+# 1. Extension settings
+
+Admin Tools → Settings → Extension Configuration → `ai_proofread`
 
 Fill in at least the provider settings. Recommended:
 
@@ -60,10 +61,27 @@ Fill in at least the provider settings. Recommended:
 |---|-----------------------------------------------------------------------------------------------|
 | `baseUrl` | `https://openrouter.ai/api/v1`                                                        |
 | `apiKey` | `sk-or-…`                                                                              |
-| `model` | `anthropic/claude-opus-4.8`                                                             |
-| `providerOrder` | `anthropic` - when routed to Google, I've had problems with the structured JSON |
-| `allowFallbacks` | `0` - pins strictly to `providerOrder`                                         |
-| `reasoning` | `1` - more expensive, but far better results                                        |
+| `requestTimeout` |                                                                                |
+| `maxConcurrency` |                                                                                |
+| `useMock` | `0`                                                                                   |
+
+And for the LLM prompt:
+
+| Setting | Value |
+|---------|-------|
+| `siteDescription` | For better context |
+| `extraPromptInstructions` | Allows adding of custom rules |
+| `enableStyle` | `1` |
+| `enableGenderInclusiveLanguage` | `1` |
+| `genderInclusiveStyle` | E.g. "Nutzer/innen" |
+
+### 2. Model selection (KI-Lektorat → Dropdown: Einstellungen)
+
+Comes with a few preconfigured models for testing.
+
+Recommended:
+- **Reasoning on** gives much better results (slower and more expensive).
+- **Pin a provider** (e.g. `anthropic`) if the default routing lands on providers that e.g. don't return the required JSON.
 
 ## License
 

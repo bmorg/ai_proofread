@@ -51,8 +51,11 @@ final class OpenAiCompatibleClient extends AbstractHttpLlmClient
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $userText],
             ],
-            // Ask OpenRouter to include the actual cost (USD) in usage.cost;
-            // endpoints that don't support it simply ignore the field.
+            // Ask OpenRouter to include the actual cost (USD) in usage.cost. This
+            // `usage` field — like `reasoning` and `provider` below — is
+            // OpenRouter-specific: a stricter OpenAI-compatible endpoint may reject it
+            // as an unknown top-level argument with a 400 (api.openai.com historically
+            // does), not silently ignore it. Only OpenRouter is tested — see README.
             'usage' => ['include' => true],
         ];
         $body += $this->responseFormat($mode, $jsonSchema);
@@ -70,8 +73,9 @@ final class OpenAiCompatibleClient extends AbstractHttpLlmClient
             $body['provider'] = ['order' => [$pinProvider], 'allow_fallbacks' => false];
         }
 
-        // Provider reasoning/thinking (e.g. OpenRouter "reasoning") — improves
-        // recall noticeably, at the cost of extra (reasoning) output tokens.
+        // Provider reasoning/thinking (OpenRouter "reasoning" — OpenRouter-specific,
+        // see the usage note above) — improves recall noticeably, at the cost of
+        // extra (reasoning) output tokens.
         if ($reasoning) {
             $body['reasoning'] = ['enabled' => true];
         }
