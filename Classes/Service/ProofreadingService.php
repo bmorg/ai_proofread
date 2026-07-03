@@ -464,6 +464,9 @@ final class ProofreadingService
     }
 
     /**
+     * Unknown categories are kept (sorted last) — see CLAUDE.md → "Review-and-fix
+     * queue", known edge.
+     *
      * @param mixed $findings
      * @return array<int, mixed>
      */

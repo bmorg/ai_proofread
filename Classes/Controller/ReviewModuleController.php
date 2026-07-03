@@ -361,6 +361,9 @@ final class ReviewModuleController
      * Progress over a run's localized findings: how many are decided (accepted or
      * dismissed) vs. still open.
      *
+     * The total includes unknown-category findings that buildReportSections()
+     * doesn't render — see CLAUDE.md → "Review-and-fix queue", known edge.
+     *
      * @param array<string, mixed> $report
      * @return array{total: int, done: int, open: int}
      */
@@ -664,6 +667,9 @@ final class ReviewModuleController
      * apply URL plus the surrounding context. The grouping iterates the stored
      * findings array preserving its keys, so the exposed index matches the index
      * the apply/dismiss actions resolve against.
+     *
+     * Findings with an unknown category match no section and are not rendered —
+     * see CLAUDE.md → "Review-and-fix queue", known edge.
      *
      * @param array<string, mixed> $report
      * @param array<int, string> $states finding index => stored review status
