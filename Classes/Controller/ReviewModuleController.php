@@ -8,11 +8,13 @@ use Bmorg\AiProofread\Enum\Category;
 use Bmorg\AiProofread\Enum\ModelPreset;
 use Bmorg\AiProofread\Enum\ReviewStatus;
 use Bmorg\AiProofread\Service\ActivePreset;
+use Bmorg\AiProofread\Service\FindingStateRepository;
 use Bmorg\AiProofread\Service\LogRepository;
 use Bmorg\AiProofread\Service\ProofreadingService;
 use Bmorg\AiProofread\Service\QueueRepository;
 use Bmorg\AiProofread\Service\ReportRepository;
 use Bmorg\AiProofread\Service\ReviewRepository;
+use Bmorg\AiProofread\Service\SuggestionApplier;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
@@ -20,6 +22,7 @@ use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Http\HtmlResponse;
+use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
@@ -64,6 +67,8 @@ final class ReviewModuleController
         private readonly LogRepository $log,
         private readonly ActivePreset $activePreset,
         private readonly FlashMessageService $flashMessageService,
+        private readonly SuggestionApplier $applier,
+        private readonly FindingStateRepository $findingStates,
     ) {
     }
 
@@ -150,6 +155,15 @@ final class ReviewModuleController
             }
         }
 
+        // Finding-level actions for the review-and-fix queue: apply a suggestion
+        // (write-back via DataHandler), mark it manually done, dismiss it, or reopen
+        // it. Like run/mark these are tokenized and PRG-redirect; called from the
+        // progressive-enhancement JS (X-Requested-With) they return JSON so the card
+        // updates without a reload.
+        if ($pageUid > 0 && \in_array($action, ['apply', 'dismiss', 'reopen', 'manual'], true)) {
+            return $this->handleFindingAction($request, $pageUid, $beUser);
+        }
+
         $latestReport = $pageUid > 0 ? $this->reports->findLatestByPage($pageUid) : null;
         $review = $pageUid > 0 ? $this->reviews->findByPage($pageUid) : null;
         $status = $this->reviews->deriveStatus($latestReport, $review);
@@ -223,6 +237,122 @@ final class ReviewModuleController
         }
 
         $menuRegistry->addMenu($menu);
+    }
+
+    // -- finding actions (review-and-fix queue) ------------------------------
+
+    /**
+     * Perform a finding-level action — apply (write-back), mark manually done,
+     * dismiss, or reopen. Resolves the finding from its run + index, performs the
+     * action, then either returns JSON (when called via the enhancement JS) or
+     * PRG-redirects back to Aktueller Report with a confirmation flash.
+     */
+    private function handleFindingAction(ServerRequestInterface $request, int $pageUid, int $beUser): ResponseInterface
+    {
+        $params = $request->getQueryParams();
+        $action = (string)($params['action'] ?? '');
+        $reportUid = (int)($params['reportUid'] ?? 0);
+        $index = (int)($params['finding'] ?? -1);
+        $isAjax = strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest';
+
+        $ok = false;
+        $state = 'open';
+        $message = 'Hinweis nicht gefunden.';
+
+        $run = $reportUid > 0 ? $this->reports->findByUid($reportUid) : null;
+        // The run must belong to this (already access-gated) page — a defence so a
+        // hand-crafted reportUid can't act on another page's content.
+        if ($run !== null && (int)($run['page_uid'] ?? 0) === $pageUid && $index >= 0) {
+            $report = $this->decodeReport($run);
+            $findings = \is_array($report['findings'] ?? null) ? $report['findings'] : [];
+            $finding = $findings[$index] ?? null;
+            if (\is_array($finding)) {
+                if ($action === 'dismiss') {
+                    $this->findingStates->setState($reportUid, $index, FindingStateRepository::DISMISSED, $beUser);
+                    $ok = true;
+                    $state = FindingStateRepository::DISMISSED;
+                    $message = 'Hinweis verworfen.';
+                } elseif ($action === 'reopen') {
+                    $this->findingStates->clearState($reportUid, $index);
+                    $ok = true;
+                    $state = 'open';
+                    $message = 'Hinweis wiederhergestellt.';
+                } elseif ($action === 'manual') {
+                    // The editor fixed it themselves (e.g. via the edit form, or for
+                    // a finding that wasn't auto-applyable) — record it as resolved
+                    // without writing anything back.
+                    $this->findingStates->setState($reportUid, $index, FindingStateRepository::MANUAL, $beUser);
+                    $ok = true;
+                    $state = FindingStateRepository::MANUAL;
+                    $message = 'Als manuell erledigt markiert.';
+                } else {
+                    $status = $this->applier->apply(
+                        $pageUid,
+                        (int)($finding['elementUid'] ?? 0),
+                        (string)($finding['quote'] ?? ''),
+                        (string)($finding['suggestion'] ?? ''),
+                        $beUser
+                    );
+                    $ok = $status === SuggestionApplier::APPLIED;
+                    if ($ok) {
+                        $this->findingStates->setState($reportUid, $index, FindingStateRepository::ACCEPTED, $beUser);
+                        $state = FindingStateRepository::ACCEPTED;
+                    }
+                    $message = $this->applyMessage($status);
+                }
+            }
+        }
+
+        if ($isAjax) {
+            $progress = $this->findingProgress($reportUid, $this->decodeReport($run));
+            return new JsonResponse([
+                'ok' => $ok,
+                'state' => $state,
+                'message' => $message,
+                'progress' => $progress,
+            ]);
+        }
+
+        $this->flashMessageService->getMessageQueueByIdentifier()->enqueue(
+            new FlashMessage($message, '', storeInSession: true)
+        );
+        return new RedirectResponse(
+            (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'view' => self::VIEW_CURRENT, 'reportUid' => $reportUid])
+        );
+    }
+
+    /**
+     * German confirmation text for each apply outcome. A failed apply explains why
+     * and (in the UI) leaves the deep-link as the manual fallback.
+     */
+    private function applyMessage(string $status): string
+    {
+        return match ($status) {
+            SuggestionApplier::APPLIED => 'Vorschlag übernommen.',
+            SuggestionApplier::NOT_FOUND => 'Das zitierte Original wurde im aktuellen Inhalt nicht gefunden — vermutlich bereits geändert. Bitte manuell bearbeiten.',
+            SuggestionApplier::AMBIGUOUS => 'Das Zitat kommt mehrfach vor und konnte nicht eindeutig zugeordnet werden. Bitte manuell bearbeiten.',
+            SuggestionApplier::SPANS_MARKUP => 'Die Textstelle erstreckt sich über Formatierungen und kann nicht automatisch ersetzt werden. Bitte manuell bearbeiten.',
+            SuggestionApplier::NO_PERMISSION => 'Keine Berechtigung, dieses Inhaltselement zu bearbeiten.',
+            default => 'Der Vorschlag konnte nicht übernommen werden.',
+        };
+    }
+
+    /**
+     * Progress over a run's localized findings: how many are decided (accepted or
+     * dismissed) vs. still open.
+     *
+     * @param array<string, mixed> $report
+     * @return array{total: int, done: int, open: int}
+     */
+    private function findingProgress(int $reportUid, array $report): array
+    {
+        $findings = \is_array($report['findings'] ?? null) ? $report['findings'] : [];
+        $total = \count($findings);
+        $states = $reportUid > 0 ? $this->findingStates->statesFor($reportUid) : [];
+        // Only count states for indices that still exist in this run.
+        $done = \count(array_filter(array_keys($states), static fn (int $i): bool => $i < $total));
+
+        return ['total' => $total, 'done' => $done, 'open' => max(0, $total - $done)];
     }
 
     // -- Einstellungen view (admin-only) -------------------------------------
@@ -312,9 +442,20 @@ final class ReviewModuleController
         }
 
         // A specific historical run can be opened via ?reportUid= (from the
-        // Report-Verlauf); otherwise show the latest run.
+        // Report-Verlauf); otherwise show the latest run. The requested run is only
+        // honoured when it belongs to this (already access-gated) page — otherwise a
+        // hand-crafted ?id=<ownPage>&reportUid=<otherPage's run> would disclose the
+        // other page's report content. Same page-ownership check as the run/mark and
+        // apply/dismiss actions; a foreign or stale uid falls back to this page's
+        // latest run.
         $reportUid = (int)($request->getQueryParams()['reportUid'] ?? 0);
-        $run = $reportUid > 0 ? $this->reports->findByUid($reportUid) : $latestReport;
+        $run = $latestReport;
+        if ($reportUid > 0) {
+            $requested = $this->reports->findByUid($reportUid);
+            if ($requested !== null && (int)($requested['page_uid'] ?? 0) === $pageUid) {
+                $run = $requested;
+            }
+        }
         $isHistorical = $run !== null && $latestReport !== null && (int)$run['uid'] !== (int)$latestReport['uid'];
 
         $pageRecord = BackendUtility::getRecord('pages', $pageUid, 'uid,title');
@@ -323,6 +464,14 @@ final class ReviewModuleController
 
         $report = $this->decodeReport($run);
         $proofedAt = ($review !== null && (int)($review['proofed_at'] ?? 0) > 0) ? BackendUtility::datetime((int)$review['proofed_at']) : '';
+
+        $shownReportUid = (int)($run['uid'] ?? 0);
+        $states = $shownReportUid > 0 ? $this->findingStates->statesFor($shownReportUid) : [];
+        // Whether to offer one-click apply at all: the user must be allowed to
+        // modify content elements (DataHandler enforces per-record edit too).
+        $beUserObj = $GLOBALS['BE_USER'] ?? null;
+        $canApply = $beUserObj !== null && $beUserObj->check('tables_modify', 'tt_content');
+        $progress = $this->findingProgress($shownReportUid, $report);
 
         return $this->moduleResponse($moduleTemplate, $this->renderView('Review/Current.html', [
             'pageUid' => $pageUid,
@@ -341,7 +490,10 @@ final class ReviewModuleController
             'proofedAt' => $proofedAt,
             'model' => $run !== null ? (string)$run['model'] : '',
             'findingsCount' => \count($report['findings'] ?? []),
-            'sections' => $this->buildReportSections($report),
+            'progressTotal' => $progress['total'],
+            'progressDone' => $progress['done'],
+            'progressOpen' => $progress['open'],
+            'sections' => $this->buildReportSections($report, $pageUid, $shownReportUid, $states, $canApply),
             'pageFindings' => $this->buildPageFindings($report),
             'other' => $this->buildOther($report),
             'error' => $error,
@@ -488,22 +640,31 @@ final class ReviewModuleController
     }
 
     /**
-     * Localised findings, grouped by category in urgency order.
+     * Localised findings, grouped by category in urgency order, each enriched for
+     * the review-and-fix queue: its index in the run (stable action key), review
+     * state, a deep-link to the source element's edit form, and — when the quote
+     * is uniquely locatable in the live content and the user may edit it — an
+     * apply URL plus the surrounding context. The grouping iterates the stored
+     * findings array preserving its keys, so the exposed index matches the index
+     * the apply/dismiss actions resolve against.
      *
      * @param array<string, mixed> $report
+     * @param array<int, string> $states finding index => stored review status
      * @return array<int, array{label: string, findings: array<int, array<string, mixed>>}>
      */
-    private function buildReportSections(array $report): array
+    private function buildReportSections(array $report, int $pageUid, int $reportUid, array $states, bool $canApply): array
     {
         $findings = $report['findings'] ?? [];
         if (!\is_array($findings)) {
             return [];
         }
 
+        $returnUrl = (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'view' => self::VIEW_CURRENT, 'reportUid' => $reportUid]);
+
         $sections = [];
         foreach (Category::ordered() as $category) {
             $items = [];
-            foreach ($findings as $f) {
+            foreach ($findings as $index => $f) {
                 if (!\is_array($f) || ($f['category'] ?? '') !== $category->value) {
                     continue;
                 }
@@ -513,6 +674,40 @@ final class ReviewModuleController
                 );
                 $f['quoteHtml'] = $quoteHtml;
                 $f['suggestionHtml'] = $suggestionHtml;
+
+                $idx = (int)$index;
+                $elementUid = (int)($f['elementUid'] ?? 0);
+                $state = $states[$idx] ?? 'open';
+                $f['index'] = $idx;
+                $f['state'] = $state;
+                $f['elementLabel'] = (string)($f['elementLabel'] ?? '');
+
+                // Deep-link to the element's edit form (the universal fallback when
+                // apply isn't offered) — only when we know which element it is.
+                $f['editUrl'] = $elementUid > 0
+                    ? (string)$this->uriBuilder->buildUriFromRoute('record_edit', [
+                        'edit' => ['tt_content' => [$elementUid => 'edit']],
+                        'returnUrl' => $returnUrl,
+                    ])
+                    : '';
+
+                // Offer apply only for still-open findings whose quote is uniquely
+                // locatable right now and that the user may edit; otherwise the
+                // deep-link stands in. (locate() does a small read + parse per open
+                // finding — fine for the handful a page typically has.)
+                $locate = ($state === 'open' && $canApply && $elementUid > 0)
+                    ? $this->applier->locate($pageUid, $elementUid, (string)($f['quote'] ?? ''))
+                    : null;
+                $f['applicable'] = $locate?->applicable ?? false;
+                $f['contextBefore'] = $locate?->contextBefore ?? '';
+                $f['contextAfter'] = $locate?->contextAfter ?? '';
+                $f['applyUrl'] = ($locate?->applicable ?? false)
+                    ? (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'apply', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT])
+                    : '';
+                $f['dismissUrl'] = (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'dismiss', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT]);
+                $f['manualUrl'] = (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'manual', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT]);
+                $f['reopenUrl'] = (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'action' => 'reopen', 'reportUid' => $reportUid, 'finding' => $idx, 'view' => self::VIEW_CURRENT]);
+
                 $items[] = $f;
             }
             if ($items !== []) {

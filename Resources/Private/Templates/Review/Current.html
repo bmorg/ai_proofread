@@ -11,9 +11,15 @@
 .aiproofread-section > summary { cursor: pointer; font-weight: 600; font-size: 1.15em; margin-bottom: .4em; padding: .15em 0; }
 .aiproofread-info { cursor: help; color: #6c757d; margin-left: .25em; }
 .aiproofread-info:hover, .aiproofread-info:focus { color: #0a7ea4; }
+.aiproofread-progress { margin: .25em 0 1em; font-weight: 600; color: #495057; }
 .aiproofread-finding {
     margin-bottom: .6rem; border: 1px solid #d0d0d0; border-radius: 3px; overflow: hidden;
 }
+.aiproofread-finding-head {
+    padding: .25rem .5rem; background: #f1f3f5; border-bottom: 1px solid #e1e4e8;
+    font-size: .82em; color: #495057;
+}
+.aiproofread-finding-head .label { color: #868e96; }
 .aiproofread-diff-line {
     display: flex; align-items: baseline; padding: .3rem .5rem;
     font-family: var(--bs-font-monospace, monospace); font-size: .9em;
@@ -28,10 +34,57 @@
 .aiproofread-del .aiproofread-chg { background: #ec9aa2; }
 .aiproofread-add .aiproofread-chg { background: #9cccb4; }
 .aiproofread-ws { opacity: .6; }
+.aiproofread-context {
+    padding: .35rem .5rem; background: #fff; border-top: 1px solid #ececec;
+    color: #6c757d; font-size: .85em; white-space: pre-wrap; word-break: break-word;
+}
+.aiproofread-context-hit { color: #212529; background: #fff3cd; border-radius: 2px; padding: 0 .1em; }
 .aiproofread-explanation {
     padding: .4rem .5rem .4rem 1.7em; background: #fafafa;
     border-top: 1px solid #ececec; color: #555; font-size: .90em;
 }
+.aiproofread-actions {
+    display: flex; flex-wrap: wrap; gap: .4rem; align-items: center;
+    padding: .4rem .5rem; background: #fafafa; border-top: 1px solid #ececec;
+}
+.aiproofread-state-badge { font-size: .85em; font-weight: 600; }
+.aiproofread-action-msg { font-size: .85em; }
+.aiproofread-action-msg.is-error { color: #842029; }
+.aiproofread-action-msg.is-ok { color: #0f5132; }
+
+/* State-driven visibility: the server renders state-<status> on the card, and the
+   enhancement JS only swaps that class — so server-rendered and JS-updated states
+   share one set of rules. */
+.aiproofread-finding .act-reopen,
+.aiproofread-finding .aiproofread-state-badge { display: none; }
+
+.aiproofread-finding.state-accepted { opacity: .7; }
+.aiproofread-finding.state-accepted .aiproofread-del { text-decoration: line-through; opacity: .6; }
+.aiproofread-finding.state-accepted .act-apply,
+.aiproofread-finding.state-accepted .act-manual,
+.aiproofread-finding.state-accepted .act-dismiss { display: none; }
+.aiproofread-finding.state-accepted .aiproofread-state-badge { display: inline; color: #0f5132; }
+.aiproofread-finding.state-accepted .aiproofread-state-badge::before { content: "✓ Übernommen"; }
+
+.aiproofread-finding.state-manual { opacity: .7; }
+.aiproofread-finding.state-manual .act-apply,
+.aiproofread-finding.state-manual .act-manual,
+.aiproofread-finding.state-manual .act-dismiss { display: none; }
+.aiproofread-finding.state-manual .act-reopen { display: inline-block; }
+.aiproofread-finding.state-manual .aiproofread-state-badge { display: inline; color: #0f5132; }
+.aiproofread-finding.state-manual .aiproofread-state-badge::before { content: "✓ Manuell erledigt"; }
+
+.aiproofread-finding.state-dismissed { opacity: .55; }
+.aiproofread-finding.state-dismissed .act-apply,
+.aiproofread-finding.state-dismissed .act-manual,
+.aiproofread-finding.state-dismissed .act-dismiss { display: none; }
+.aiproofread-finding.state-dismissed .act-reopen { display: inline-block; }
+.aiproofread-finding.state-dismissed .aiproofread-state-badge { display: inline; color: #842029; }
+.aiproofread-finding.state-dismissed .aiproofread-state-badge::before { content: "Verworfen"; }
+
+.aiproofread-advisory { margin-top: 1.5em; padding-top: .5em; border-top: 2px solid #e1e4e8; }
+.aiproofread-advisory-head { font-size: 1.2em; margin-bottom: .1em; }
+.aiproofread-advisory-intro { color: #6c757d; font-size: .9em; margin-bottom: .6em; }
 .aiproofread-note {
     padding: .4rem .6rem; margin-bottom: .4rem;
     background: #fafafa; border-left: 3px solid #adb5bd; border-radius: 2px;
@@ -113,42 +166,75 @@
 </f:if>
 
 <f:section name="ReportBody">
+    <f:if condition="{progressTotal} > 0">
+        <div class="aiproofread-progress" data-aiproofread-progress>{progressDone} von {progressTotal} Fundstellen erledigt</div>
+    </f:if>
+
     <f:for each="{sections}" as="section">
         <details class="aiproofread-section" open="open">
             <summary>{section.label} ({section.findings -> f:count()})</summary>
             <f:for each="{section.findings}" as="finding">
-                <div class="aiproofread-finding">
+                <div class="aiproofread-finding state-{finding.state}" data-aiproofread-finding="{finding.index}">
+                    <f:if condition="{finding.elementLabel}">
+                        <div class="aiproofread-finding-head"><span class="label">Inhaltselement:</span> {finding.elementLabel}</div>
+                    </f:if>
                     <div class="aiproofread-diff-line aiproofread-del"><span class="aiproofread-marker">&minus;</span><span class="aiproofread-text"><f:format.raw>{finding.quoteHtml}</f:format.raw></span></div>
                     <div class="aiproofread-diff-line aiproofread-add"><span class="aiproofread-marker">+</span><span class="aiproofread-text"><f:format.raw>{finding.suggestionHtml}</f:format.raw></span></div>
+                    <f:if condition="{finding.contextBefore} || {finding.contextAfter}">
+                        <div class="aiproofread-context">{finding.contextBefore}<span class="aiproofread-context-hit">{finding.quote}</span>{finding.contextAfter}</div>
+                    </f:if>
                     <f:if condition="{finding.explanation}">
                         <div class="aiproofread-explanation">{finding.explanation}</div>
                     </f:if>
+                    <div class="aiproofread-actions">
+                        <span class="aiproofread-state-badge"></span>
+                        <f:if condition="{finding.applyUrl}">
+                            <a class="act-apply btn btn-sm btn-success" data-aiproofread-action="apply" href="{finding.applyUrl}">Übernehmen</a>
+                        </f:if>
+                        <f:if condition="{finding.editUrl}">
+                            <a class="act-edit btn btn-sm btn-default" href="{finding.editUrl}">Inhaltselement bearbeiten</a>
+                        </f:if>
+                        <a class="act-manual btn btn-sm btn-default" data-aiproofread-action="manual" href="{finding.manualUrl}">Manuell erledigt</a>
+                        <a class="act-dismiss btn btn-sm btn-default" data-aiproofread-action="dismiss" href="{finding.dismissUrl}">Verwerfen</a>
+                        <a class="act-reopen btn btn-sm btn-link" data-aiproofread-action="reopen" href="{finding.reopenUrl}">Wiederherstellen</a>
+                        <span class="aiproofread-action-msg" role="status" aria-live="polite"></span>
+                    </div>
                 </div>
             </f:for>
         </details>
     </f:for>
 
-    <f:if condition="{pageFindings -> f:count()} > 0">
-        <details class="aiproofread-section" open="open">
-            <summary>Seitenweite Hinweise ({pageFindings -> f:count()})</summary>
-            <f:for each="{pageFindings}" as="pf">
-                <div class="aiproofread-note aiproofread-note--page">
-                    <strong>{pf.label}:</strong> {pf.observation}
-                    <f:if condition="{pf.suggestion}">
-                        <span class="aiproofread-rec">Empfehlung: {pf.suggestion}</span>
-                    </f:if>
-                </div>
-            </f:for>
-        </details>
-    </f:if>
+    <f:if condition="{pageFindings -> f:count()} > 0 || {other -> f:count()} > 0">
+        <div class="aiproofread-advisory">
+            <h3 class="aiproofread-advisory-head">Erfordert Ihre Einschätzung</h3>
+            <p class="aiproofread-advisory-intro">
+                Seitenweite und redaktionelle Hinweise lassen sich nicht eindeutig einer Textstelle zuordnen
+                und daher nicht automatisch übernehmen — bitte selbst prüfen und im Inhalt umsetzen.
+            </p>
 
-    <f:if condition="{other -> f:count()} > 0">
-        <details class="aiproofread-section" open="open">
-            <summary>Weitere Hinweise ({other -> f:count()})</summary>
-            <f:for each="{other}" as="note">
-                <div class="aiproofread-note">{note}</div>
-            </f:for>
-        </details>
+            <f:if condition="{pageFindings -> f:count()} > 0">
+                <details class="aiproofread-section" open="open">
+                    <summary>Seitenweite Hinweise ({pageFindings -> f:count()})</summary>
+                    <f:for each="{pageFindings}" as="pf">
+                        <div class="aiproofread-note aiproofread-note--page">
+                            <strong>{pf.label}:</strong> {pf.observation}
+                            <f:if condition="{pf.suggestion}">
+                                <span class="aiproofread-rec">Empfehlung: {pf.suggestion}</span>
+                            </f:if>
+                        </div>
+                    </f:for>
+                </details>
+            </f:if>
+
+            <f:if condition="{other -> f:count()} > 0">
+                <details class="aiproofread-section" open="open">
+                    <summary>Weitere Hinweise ({other -> f:count()})</summary>
+                    <f:for each="{other}" as="note">
+                        <div class="aiproofread-note">{note}</div>
+                    </f:for>
+                </details>
+            </f:if>
+        </div>
     </f:if>
 
     <f:if condition="{sections -> f:count()} == 0">
@@ -159,5 +245,64 @@
         </f:if>
     </f:if>
 </f:section>
+
+<f:comment>
+    Progressive enhancement: apply/dismiss/reopen work as plain tokenized links
+    (full-page PRG) without JS. When this module script runs (modern browsers; may
+    be blocked by the v12/13 backend CSP, in which case the link navigation stands
+    in), it turns them into in-place updates: fetch the same URL with
+    X-Requested-With, then swap the card's state-* class and refresh the progress
+    line from the JSON response. No RequireJS, no build step.
+</f:comment>
+<script type="module">
+    const progressEl = document.querySelector('[data-aiproofread-progress]');
+    const setProgress = (p) => {
+        if (progressEl && p && typeof p.total === 'number') {
+            progressEl.textContent = `${p.done} von ${p.total} Fundstellen erledigt`;
+        }
+    };
+    document.querySelectorAll('[data-aiproofread-action]').forEach((link) => {
+        link.addEventListener('click', async (event) => {
+            event.preventDefault();
+            if (link.classList.contains('disabled')) {
+                return;
+            }
+            const card = link.closest('[data-aiproofread-finding]');
+            link.classList.add('disabled');
+            try {
+                const response = await fetch(link.href, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                const data = await response.json();
+                // Surface the server's outcome message — crucial when an apply is
+                // refused (e.g. the quoted text changed after a previous fix in the
+                // same element): without this the JS path would look like a no-op,
+                // while the no-JS path shows it as a flash.
+                const msgEl = card?.querySelector('.aiproofread-action-msg');
+                if (msgEl) {
+                    msgEl.textContent = data.message || '';
+                    msgEl.classList.toggle('is-error', data.ok === false);
+                    msgEl.classList.toggle('is-ok', data.ok === true);
+                }
+                if (card && data.state) {
+                    // Drop every existing state-* class (not a fixed list — so a new
+                    // state can't get stranded, e.g. reopen leaving state-manual on).
+                    // Iterate a snapshot, since removing mutates the live classList.
+                    [...card.classList]
+                        .filter((c) => c.startsWith('state-'))
+                        .forEach((c) => card.classList.remove(c));
+                    card.classList.add(`state-${data.state}`);
+                }
+                setProgress(data.progress);
+            } catch (error) {
+                // Enhancement failed — fall back to the normal link navigation.
+                window.location.href = link.href;
+            } finally {
+                link.classList.remove('disabled');
+            }
+        });
+    });
+</script>
 
 </html>

@@ -67,6 +67,29 @@ CREATE TABLE tx_aiproofread_queue (
 );
 
 --
+-- Per-finding review state for the review-and-fix queue. Reports are immutable,
+-- so an editor's accept/dismiss decision on a single localized finding lives here,
+-- keyed by the run (report_uid) + the finding's index in that run's stored,
+-- already-sorted findings array. Absence of a row = the finding is still open.
+-- "accepted" means the suggestion was written back to the content element.
+--
+CREATE TABLE tx_aiproofread_finding_state (
+    uid int(11) unsigned NOT NULL auto_increment,
+    pid int(11) unsigned DEFAULT '0' NOT NULL,
+    crdate int(11) unsigned DEFAULT '0' NOT NULL,
+    tstamp int(11) unsigned DEFAULT '0' NOT NULL,
+
+    report_uid int(11) unsigned DEFAULT '0' NOT NULL,
+    finding_index int(11) unsigned DEFAULT '0' NOT NULL,
+
+    status varchar(20) DEFAULT '' NOT NULL,
+    be_user int(11) unsigned DEFAULT '0' NOT NULL,
+
+    PRIMARY KEY (uid),
+    UNIQUE KEY finding (report_uid,finding_index)
+);
+
+--
 -- Append-only audit log: one row per LLM call (report generation), capturing
 -- the full request and response for debugging and accountability.
 --

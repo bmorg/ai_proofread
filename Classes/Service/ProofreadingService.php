@@ -123,7 +123,15 @@ final class ProofreadingService
                 $pageFindings = $outcome->payload['pageFindings'] ?? [];
                 $other = $outcome->payload['other'] ?? [];
             } else {
+                // Per-element pass: tag each finding with the element it came from,
+                // so the review-and-fix UI can offer "apply" (write-back) and a
+                // deep-link to that element's edit form. The whole-page pass (above)
+                // owns pageFindings/other, which stay un-attributed by design.
                 foreach (($outcome->payload['findings'] ?? []) as $finding) {
+                    if (\is_array($finding)) {
+                        $finding['elementUid'] = (int)$element['uid'];
+                        $finding['elementLabel'] = (string)$element['label'];
+                    }
                     $findings[] = $finding;
                 }
             }
