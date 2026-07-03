@@ -938,7 +938,13 @@ final class ReviewModuleController
         if ($usernameOnly) {
             return $username !== '' ? $username : ('#' . $beUserId);
         }
-        return trim(($user['realName'] ?? '') . ' (' . $username . ')');
+        // Full variant (API-Verlauf detail): "Real Name (username)" — but realName
+        // is optional, and an empty one must not render as a bare "(username)".
+        $realName = trim((string)($user['realName'] ?? ''));
+        if ($realName === '') {
+            return $username !== '' ? $username : ('#' . $beUserId);
+        }
+        return $realName . ' (' . $username . ')';
     }
 
     private function formatCost(float $costUsd): string
