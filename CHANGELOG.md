@@ -1,34 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2026-07-04
 
-- **Review-and-fix queue.** Localized findings in *Aktueller Report* can now be
-  acted on directly: **Übernehmen** writes the suggestion back into the content
-  element (via DataHandler — with undo/history), **Manuell erledigt** marks a
-  finding the editor fixed by hand, **Verwerfen** dismisses a finding, and each
-  finding deep-links to its content element's edit form. Progress
-  ("x von y erledigt") is tracked per report run.
-- bodytext write-back anchors the quote within a single RTE text node and only
-  offers *Übernehmen* when it matches uniquely; otherwise it falls back to the
-  deep-link. header/subheader apply by exact match.
-- Page-wide and free-text hints stay advisory under a separate
-  *"Erfordert Ihre Einschätzung"* section (they can't be auto-applied).
-- The fix actions work without JavaScript (full-page reload); a small progressive
-  enhancement updates findings in place when available.
-- bodytext write-back is limited to content types whose bodytext is an RTE field:
-  plain-text bodytext (e.g. `table`, `bullets`) can no longer be corrupted by the
-  HTML round-trip — such findings fall back to the edit-form deep-link.
-- The raw-markup `html` content element is no longer proofread (nonsense findings,
-  wasted tokens).
-- Cleaner text extraction: every block-level boundary (`</li>`, headings, table
-  cells, …) now becomes a line break deterministically instead of relying on the
-  RTE's stored indentation — compact HTML no longer glues words together, and
-  CR/indentation artifacts no longer reach the model.
-- **Test harness** (dev-only, not shipped): unit tests for extraction, the apply
-  matching truth table (incl. the non-RTE corruption guard), prompt building and
-  OpenRouter request/response handling; functional tests (real TYPO3 on sqlite,
-  real DataHandler) for the apply write path, permissions and the report
-  page-ownership rule. Run with `composer test`.
+ - Added ability to **automatically apply** fixes from the report UI.
+ - Fixed prompt building for gender-inclusive language.
+ - Some UI fixes.
+ - Fixed stale task detection for long running tasks (heartbeat).
+ - Added test suite.
 
 ## [0.2.0] - 2026-06-29
 
@@ -39,3 +17,4 @@
 Initial release. \o/
 
 This is an **alpha** version, use with care. See [README](README.md) for the most important limitations.
+

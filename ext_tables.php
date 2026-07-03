@@ -15,7 +15,9 @@ if ((new Typo3Version())->getMajorVersion() < 12) {
         null,
         [
             'routeTarget' => \Bmorg\AiProofread\Controller\ReviewModuleController::class . '::handleRequest',
-            'access' => 'user,group',
+            // Match the v12/13 Modules.php value ('user'); 'user,group' is legacy and
+            // not a valid access keyword in the v12/13 module format.
+            'access' => 'user',
             'name' => 'web_aiproofread',
             'iconIdentifier' => 'module-aiproofread',
             'labels' => 'LLL:EXT:ai_proofread/Resources/Private/Language/locallang_mod.xlf',
