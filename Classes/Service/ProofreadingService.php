@@ -297,6 +297,7 @@ final class ProofreadingService
         // Missing-key default lives in ExtensionSettings::DEFAULTS; an explicit empty
         // value is respected (the admin cleared it — the settings label names the default).
         $genderInclusiveStyle = (string)$this->config('genderInclusiveStyle');
+        $genderEnabled = \in_array(Category::GenderInclusiveLanguage, $categories, true);
 
         // Optional site description so integrators can give the model context about
         // the kind of content it proofreads (e.g. "ein privates Weblog").
@@ -305,7 +306,7 @@ final class ProofreadingService
             ? sprintf('Du bist ein sorgfältiger deutscher Lektor für die Inhalte folgender Website: %s.', $site)
             : 'Du bist ein sorgfältiger deutscher Lektor für Website-Inhalte.';
 
-        $prompt = implode("\n", [
+        $prompt = implode("\n", array_filter([
             $intro,
             'Du erhältst den Textinhalt einer Seite bzw. eines Inhaltselements (ohne Formatierungen).',
             '',
@@ -316,7 +317,12 @@ final class ProofreadingService
             . '(besonders vor erweitertem Infinitiv mit „zu“ und vor Relativsätzen), Numerus- und Kasuskongruenz, '
             . 'überflüssige oder fehlende Leerzeichen sowie Wortwiederholungen.',
             '',
-            'Beim Gendern ist die Hausschreibweise: ' . $genderInclusiveStyle . '.',
+            // Only when the Gendern category is on AND a house style is set: clearing
+            // the style means "no house style" (per the setting), and emitting it while
+            // empty produced the garbled "Beim Gendern ist die Hausschreibweise: .".
+            ($genderEnabled && $genderInclusiveStyle !== '')
+                ? 'Beim Gendern ist die Hausschreibweise: ' . $genderInclusiveStyle . '.'
+                : null,
             '',
             'Gliedere deine Rückmeldung in drei Felder:',
             'findings = eindeutige, sichere Fehler in den genannten Kategorien, deren Korrektur die Bedeutung NICHT verändert. '
@@ -335,14 +341,19 @@ final class ProofreadingService
             '- Verändere niemals die Bedeutung und triff keine Annahmen über die gemeinte Bedeutung.',
             '- Korrekte, auch umgangssprachlich akzeptable Formulierungen (z. B. „mehrmals die Woche") sind keine Fehler.',
             '- Reine Stil-, Umformulierungs- oder Lesbarkeitsvorschläge gehören NICHT in findings, sondern in other.',
-            '- Gendern: Schlage gegenderte Formen nicht von dir aus vor. Melde uneinheitliches Gendern nur als pageFinding. '
-            . 'Konkrete gegenderte Korrekturen in findings nur dort, wo der Text bereits gendert und die Form inkonsistent oder grammatisch falsch ist.',
+            // Only when the Gendern category is enabled — otherwise the schema enum
+            // excludes "gender-inclusive-language" and this would route the model to a
+            // category it can't emit.
+            $genderEnabled
+                ? '- Gendern: Schlage gegenderte Formen nicht von dir aus vor. Melde uneinheitliches Gendern nur als pageFinding. '
+                    . 'Konkrete gegenderte Korrekturen in findings nur dort, wo der Text bereits gendert und die Form inkonsistent oder grammatisch falsch ist.'
+                : null,
             '- Anführungszeichen in den Fließtext-Feldern (explanation, observation, other): Verwende für Hervorhebungen und Zitate '
             . 'IMMER die deutschen typografischen Anführungszeichen (öffnend „, schließend “) und NIEMALS das gerade Zeichen ". '
             . 'Ein gerades " beendet sonst die JSON-Zeichenkette vorzeitig und schneidet den Text ab.',
             '',
             'Lass Listen leer, wenn es nichts gibt. Erfinde keine Fehler. Antworte ausschließlich im vorgegebenen JSON-Schema.',
-        ]);
+        ], static fn ($line): bool => $line !== null));
 
         // Site-specific custom rules.
         $extra = trim((string)($this->config('extraPromptInstructions') ?? ''));
