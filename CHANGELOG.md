@@ -9,6 +9,9 @@
  - Fixed prompt building for gender-inclusive language.
  - Some UI fixes.
  - Fixed stale task detection for long running tasks (heartbeat).
+ - Fixed a race where a double-click on "Report erstellen" could enqueue (and
+   bill) the same page twice — the queue now has a unique key per page/language
+   (**run the database compare** on update).
  - Added test suite.
 
 ## [0.2.0] - 2026-06-29

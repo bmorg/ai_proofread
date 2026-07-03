@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Bmorg\AiProofread\Service;
 
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 
@@ -12,9 +13,10 @@ use TYPO3\CMS\Core\Database\ConnectionPool;
  * enqueues a job; the aiproofread:process-queue command (run via the Scheduler)
  * drains it. A run is N+1 LLM requests, far too slow to do inline.
  *
- * At most one live row per page/language: while pending or running it blocks a
- * duplicate enqueue; a successful run deletes the row (the stored report run is
- * the result); a failed run keeps the row with status "error" and the message so
+ * At most one row per page/language — enforced by a UNIQUE key, not just by the
+ * enqueue() status check: while pending or running it blocks a duplicate
+ * enqueue; a successful run deletes the row (the stored report run is the
+ * result); a failed run keeps the row with status "error" and the message so
  * the module can show it.
  */
 final class QueueRepository
@@ -41,6 +43,11 @@ final class QueueRepository
     /**
      * Enqueue a run for a page, unless one is already pending/running. A prior
      * error row for the page is cleared and replaced by a fresh pending job.
+     *
+     * Race-safe: the check-then-insert window (double-click, two tabs) is closed
+     * by the UNIQUE key on (page_uid, language_uid) — a concurrent enqueue that
+     * slips past the status check hits the constraint instead of inserting a
+     * second (double-billed) job, and is swallowed as "already enqueued".
      */
     public function enqueue(int $pageUid, int $languageUid, int $beUserId): void
     {
@@ -58,14 +65,19 @@ final class QueueRepository
         $connection->delete(self::TABLE, ['page_uid' => $pageUid, 'language_uid' => $languageUid]);
 
         $now = time();
-        $connection->insert(self::TABLE, [
-            'page_uid' => $pageUid,
-            'language_uid' => $languageUid,
-            'be_user' => $beUserId,
-            'status' => self::PENDING,
-            'crdate' => $now,
-            'tstamp' => $now,
-        ]);
+        try {
+            $connection->insert(self::TABLE, [
+                'page_uid' => $pageUid,
+                'language_uid' => $languageUid,
+                'be_user' => $beUserId,
+                'status' => self::PENDING,
+                'crdate' => $now,
+                'tstamp' => $now,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            // Lost the race to a concurrent enqueue — a job for this page/language
+            // already exists, which is exactly the desired end state.
+        }
     }
 
     /**

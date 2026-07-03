@@ -62,7 +62,9 @@ CREATE TABLE tx_aiproofread_queue (
     error_message text,
 
     PRIMARY KEY (uid),
-    KEY page (page_uid,language_uid),
+    -- One row per page/language is the lifecycle invariant (pending/running/error);
+    -- the UNIQUE key makes it race-safe: two concurrent enqueues can't both insert.
+    UNIQUE KEY page (page_uid,language_uid),
     KEY pending (status,uid)
 );
 
