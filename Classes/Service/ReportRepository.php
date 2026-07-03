@@ -92,6 +92,25 @@ final class ReportRepository
         return $row ?: null;
     }
 
+    /**
+     * A report run by uid, but only when it belongs to the given page. This is the
+     * page-ownership rule for every ?reportUid= entry point: the module gates
+     * access per page, so a run may only be resolved through a page the user was
+     * already cleared for — a hand-crafted uid for another page's run returns null
+     * (no disclosure of foreign report content, no action on it).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function findByUidForPage(int $uid, int $pageUid): ?array
+    {
+        $row = $this->findByUid($uid);
+        if ($row === null || (int)($row['page_uid'] ?? 0) !== $pageUid) {
+            return null;
+        }
+
+        return $row;
+    }
+
     private function connection(): Connection
     {
         return $this->connectionPool->getConnectionForTable(self::TABLE);

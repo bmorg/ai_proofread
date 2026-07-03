@@ -24,6 +24,11 @@
   cells, …) now becomes a line break deterministically instead of relying on the
   RTE's stored indentation — compact HTML no longer glues words together, and
   CR/indentation artifacts no longer reach the model.
+- **Test harness** (dev-only, not shipped): unit tests for extraction, the apply
+  matching truth table (incl. the non-RTE corruption guard), prompt building and
+  OpenRouter request/response handling; functional tests (real TYPO3 on sqlite,
+  real DataHandler) for the apply write path, permissions and the report
+  page-ownership rule. Run with `composer test`.
 
 ## [0.2.0] - 2026-06-29
 

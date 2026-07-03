@@ -290,7 +290,11 @@ final class ProofreadingService
         }));
     }
 
-    private function buildSystemPrompt(): string
+    /**
+     * @internal public only so prompt construction (category routing, gender-style
+     *   conditionals, extra instructions) is unit-testable; not part of the API.
+     */
+    public function buildSystemPrompt(): string
     {
         $categories = $this->enabledCategories();
         $lines = [];
@@ -369,9 +373,11 @@ final class ProofreadingService
     }
 
     /**
+     * @internal public only for unit tests (schema enum must track enabled categories).
+     *
      * @return array<string, mixed>
      */
-    private function buildSchema(): array
+    public function buildSchema(): array
     {
         $enums = array_map(static fn (Category $c): string => $c->value, $this->enabledCategories());
 

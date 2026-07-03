@@ -24,7 +24,12 @@ final class OpenAiCompatibleClient extends AbstractHttpLlmClient
     // reasoning is on.
     private const REASONING_MAX_TOKENS = 32000;
 
-    protected function buildCall(string $systemPrompt, string $userText, array $jsonSchema): HttpLlmCall
+    /**
+     * @internal public (widened from protected) only so request construction —
+     *   provider pinning, reasoning, token budgets, response_format — is
+     *   unit-testable on this final class; call complete()/completeBatch().
+     */
+    public function buildCall(string $systemPrompt, string $userText, array $jsonSchema): HttpLlmCall
     {
         $baseUrl = rtrim((string)$this->config('baseUrl'), '/'); // default in ExtensionSettings::DEFAULTS
         $model = (string)($this->config('model') ?? '');
@@ -89,7 +94,12 @@ final class OpenAiCompatibleClient extends AbstractHttpLlmClient
         );
     }
 
-    protected function parseResponse(HttpLlmCall $call, int $statusCode, string $rawBody): LlmResult
+    /**
+     * @internal public (widened from protected) only so response handling —
+     *   truncation detection, tolerant JSON parsing, error surfacing — is
+     *   unit-testable on this final class; call complete()/completeBatch().
+     */
+    public function parseResponse(HttpLlmCall $call, int $statusCode, string $rawBody): LlmResult
     {
         $body = $call->requestBody;
         $model = $call->model;

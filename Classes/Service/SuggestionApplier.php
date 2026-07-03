@@ -131,10 +131,13 @@ final class SuggestionApplier
      * The match must be unique across all fields and (for bodytext) confined to a
      * single text node.
      *
+     * @internal public only so the matching truth table (incl. the non-RTE
+     *   corruption guard) is unit-testable without a database; use locate()/apply().
+     *
      * @param array<string, mixed> $row
      * @return array{status: string, field: string, newValue: string, before: string, after: string}
      */
-    private function analyze(array $row, string $quote, string $suggestion = ''): array
+    public function analyze(array $row, string $quote, string $suggestion = ''): array
     {
         $miss = ['status' => self::NOT_FOUND, 'field' => '', 'newValue' => '', 'before' => '', 'after' => ''];
 

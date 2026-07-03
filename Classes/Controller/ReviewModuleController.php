@@ -259,10 +259,10 @@ final class ReviewModuleController
         $state = 'open';
         $message = 'Hinweis nicht gefunden.';
 
-        $run = $reportUid > 0 ? $this->reports->findByUid($reportUid) : null;
-        // The run must belong to this (already access-gated) page — a defence so a
-        // hand-crafted reportUid can't act on another page's content.
-        if ($run !== null && (int)($run['page_uid'] ?? 0) === $pageUid && $index >= 0) {
+        // findByUidForPage enforces page ownership — a defence so a hand-crafted
+        // reportUid can't act on another (non-access-gated) page's content.
+        $run = $reportUid > 0 ? $this->reports->findByUidForPage($reportUid, $pageUid) : null;
+        if ($run !== null && $index >= 0) {
             $report = $this->decodeReport($run);
             $findings = \is_array($report['findings'] ?? null) ? $report['findings'] : [];
             $finding = $findings[$index] ?? null;
@@ -443,20 +443,13 @@ final class ReviewModuleController
         }
 
         // A specific historical run can be opened via ?reportUid= (from the
-        // Report-Verlauf); otherwise show the latest run. The requested run is only
-        // honoured when it belongs to this (already access-gated) page — otherwise a
-        // hand-crafted ?id=<ownPage>&reportUid=<otherPage's run> would disclose the
-        // other page's report content. Same page-ownership check as the run/mark and
-        // apply/dismiss actions; a foreign or stale uid falls back to this page's
-        // latest run.
+        // Report-Verlauf); otherwise show the latest run. findByUidForPage enforces
+        // page ownership — otherwise a hand-crafted ?id=<ownPage>&reportUid=<other
+        // page's run> would disclose the other page's report content. Same rule as
+        // the apply/dismiss actions; a foreign or stale uid falls back to this
+        // page's latest run.
         $reportUid = (int)($request->getQueryParams()['reportUid'] ?? 0);
-        $run = $latestReport;
-        if ($reportUid > 0) {
-            $requested = $this->reports->findByUid($reportUid);
-            if ($requested !== null && (int)($requested['page_uid'] ?? 0) === $pageUid) {
-                $run = $requested;
-            }
-        }
+        $run = ($reportUid > 0 ? $this->reports->findByUidForPage($reportUid, $pageUid) : null) ?? $latestReport;
         $isHistorical = $run !== null && $latestReport !== null && (int)$run['uid'] !== (int)$latestReport['uid'];
 
         $pageRecord = BackendUtility::getRecord('pages', $pageUid, 'uid,title');

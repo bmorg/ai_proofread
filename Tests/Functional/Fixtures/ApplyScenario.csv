@@ -1,0 +1,12 @@
+"be_users",,,,,,
+,"uid","pid","username","password","admin","deleted"
+,1,0,"admin","irrelevant-hash",1,0
+,2,0,"editor","irrelevant-hash",0,0
+"pages",,,,,,
+,"uid","pid","title","doktype","deleted",
+,1,0,"Seite A",1,0,
+,2,0,"Seite B",1,0,
+"tt_content",,,,,,
+,"uid","pid","CType","header","bodytext","deleted"
+,10,1,"text","Willkommen auf unsrer Seite","<p>Das ist ein <strong>wichtiger</strong> Satz mit Fehlern drin.</p><p>Zweiter Absatz.</p>",0
+,11,1,"table","Preisliste 2023","Produkt|a & b|Preis",0
