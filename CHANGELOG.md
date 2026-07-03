@@ -15,6 +15,11 @@
   *"Erfordert Ihre Einschätzung"* section (they can't be auto-applied).
 - The fix actions work without JavaScript (full-page reload); a small progressive
   enhancement updates findings in place when available.
+- bodytext write-back is limited to content types whose bodytext is an RTE field:
+  plain-text bodytext (e.g. `table`, `bullets`) can no longer be corrupted by the
+  HTML round-trip — such findings fall back to the edit-form deep-link.
+- The raw-markup `html` content element is no longer proofread (nonsense findings,
+  wasted tokens).
 
 ## [0.2.0] - 2026-06-29
 

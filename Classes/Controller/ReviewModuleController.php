@@ -332,6 +332,7 @@ final class ReviewModuleController
             SuggestionApplier::NOT_FOUND => 'Das zitierte Original wurde im aktuellen Inhalt nicht gefunden — vermutlich bereits geändert. Bitte manuell bearbeiten.',
             SuggestionApplier::AMBIGUOUS => 'Das Zitat kommt mehrfach vor und konnte nicht eindeutig zugeordnet werden. Bitte manuell bearbeiten.',
             SuggestionApplier::SPANS_MARKUP => 'Die Textstelle erstreckt sich über Formatierungen und kann nicht automatisch ersetzt werden. Bitte manuell bearbeiten.',
+            SuggestionApplier::UNSUPPORTED => 'Dieser Inhaltstyp unterstützt keine automatische Übernahme (kein RTE-Feld). Bitte manuell bearbeiten.',
             SuggestionApplier::NO_PERMISSION => 'Keine Berechtigung, dieses Inhaltselement zu bearbeiten.',
             default => 'Der Vorschlag konnte nicht übernommen werden.',
         };

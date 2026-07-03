@@ -17,6 +17,14 @@ use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
  */
 final class ContentExtractor
 {
+    /**
+     * CTypes whose bodytext is no human-readable prose. The "html" element holds
+     * raw markup — proofreading it yields nonsense findings and wastes tokens, so
+     * it is excluded from extraction entirely (and thus can never produce a
+     * finding the applier would touch).
+     */
+    private const EXCLUDED_CTYPES = ['html'];
+
     public function __construct(
         private readonly ConnectionPool $connectionPool,
     ) {
@@ -42,7 +50,8 @@ final class ContentExtractor
             ->from('tt_content')
             ->where(
                 $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pageUid, Connection::PARAM_INT)),
-                $queryBuilder->expr()->eq('sys_language_uid', $queryBuilder->createNamedParameter($languageUid, Connection::PARAM_INT))
+                $queryBuilder->expr()->eq('sys_language_uid', $queryBuilder->createNamedParameter($languageUid, Connection::PARAM_INT)),
+                $queryBuilder->expr()->notIn('CType', $queryBuilder->createNamedParameter(self::EXCLUDED_CTYPES, Connection::PARAM_STR_ARRAY))
             )
             ->orderBy('colPos')
             ->addOrderBy('sorting')

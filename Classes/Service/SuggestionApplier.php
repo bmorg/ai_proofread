@@ -26,7 +26,10 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  *    single text node (the same decoded text the model was given). The match must
  *    sit within ONE text node and be unique — a quote that spans element
  *    boundaries (e.g. includes `<strong>…</strong>`) is reported as SPANS_MARKUP
- *    and left to the deep-link, never spliced.
+ *    and left to the deep-link, never spliced. Only CTypes whose bodytext is
+ *    RTE-configured (`enableRichtext`) qualify at all: plain-text bodytext (core
+ *    "table", "bullets") would be corrupted by the HTML round-trip, so it is
+ *    reported as UNSUPPORTED and left to the deep-link.
  *
  * The write goes through DataHandler (run as the current BE user) so tt_content
  * edit permissions, RTE transformation, sys_history/undo and the refindex all
@@ -40,6 +43,7 @@ final class SuggestionApplier
     public const NOT_FOUND = 'notFound';
     public const AMBIGUOUS = 'ambiguous';
     public const SPANS_MARKUP = 'spansMarkup';
+    public const UNSUPPORTED = 'unsupported';
     public const NO_PERMISSION = 'noPermission';
     public const ERROR = 'error';
 
@@ -136,6 +140,7 @@ final class SuggestionApplier
 
         $candidates = [];
         $spanOnlyInBody = false;
+        $unsupportedBodyHit = false;
 
         foreach (['header', 'subheader'] as $field) {
             $value = (string)($row[$field] ?? '');
@@ -154,27 +159,41 @@ final class SuggestionApplier
 
         $body = (string)($row['bodytext'] ?? '');
         if ($body !== '') {
-            $bodyMatch = $this->locateInHtml($body, $quote, $suggestion);
-            if ($bodyMatch['count'] === 1) {
-                $candidates[] = [
-                    'field' => 'bodytext',
-                    'newValue' => (string)$bodyMatch['newValue'],
-                    'before' => (string)$bodyMatch['before'],
-                    'after' => (string)$bodyMatch['after'],
-                ];
-            } elseif ($bodyMatch['count'] > 1) {
-                return ['status' => self::AMBIGUOUS, 'field' => 'bodytext', 'newValue' => '', 'before' => '', 'after' => ''];
+            if (!$this->bodytextIsRichtext((string)($row['CType'] ?? ''))) {
+                // Non-RTE bodytext (core: "table", "bullets"): locateInHtml() would
+                // parse the plain text as HTML and write back the re-serialized
+                // document, corrupting the field ("a & b" → "a &amp; b"). Never
+                // auto-apply here; record a hit so the outcome stays honest.
+                $unsupportedBodyHit = str_contains($body, $quote);
             } else {
-                $spanOnlyInBody = $bodyMatch['spanContains'];
+                $bodyMatch = $this->locateInHtml($body, $quote, $suggestion);
+                if ($bodyMatch['count'] === 1) {
+                    $candidates[] = [
+                        'field' => 'bodytext',
+                        'newValue' => (string)$bodyMatch['newValue'],
+                        'before' => (string)$bodyMatch['before'],
+                        'after' => (string)$bodyMatch['after'],
+                    ];
+                } elseif ($bodyMatch['count'] > 1) {
+                    return ['status' => self::AMBIGUOUS, 'field' => 'bodytext', 'newValue' => '', 'before' => '', 'after' => ''];
+                } else {
+                    $spanOnlyInBody = $bodyMatch['spanContains'];
+                }
             }
         }
 
-        if (\count($candidates) > 1) {
+        // An unsupported-bodytext hit counts like a candidate for ambiguity: a
+        // quote that also occurs in the guarded field can't be safely attributed
+        // to the editable one.
+        if (\count($candidates) + ($unsupportedBodyHit ? 1 : 0) > 1) {
             // Same quote present in more than one field — too risky to guess which.
             return ['status' => self::AMBIGUOUS, 'field' => '', 'newValue' => '', 'before' => '', 'after' => ''];
         }
         if (\count($candidates) === 1) {
             return ['status' => self::APPLIED] + $candidates[0];
+        }
+        if ($unsupportedBodyHit) {
+            return ['status' => self::UNSUPPORTED] + $miss;
         }
 
         // No unique single-node match anywhere. If the quote only appears across
@@ -247,6 +266,20 @@ final class SuggestionApplier
     }
 
     /**
+     * Whether this CType's bodytext is an RTE (richtext) field. Only then is the
+     * parse-and-reserialize write in locateInHtml() safe: plain-text bodytext
+     * (core: "table", "bullets") must never be round-tripped through DOMDocument.
+     */
+    private function bodytextIsRichtext(string $cType): bool
+    {
+        $tca = $GLOBALS['TCA']['tt_content'] ?? [];
+
+        return (bool)($tca['types'][$cType]['columnsOverrides']['bodytext']['config']['enableRichtext']
+            ?? $tca['columns']['bodytext']['config']['enableRichtext']
+            ?? false);
+    }
+
+    /**
      * Replace the first occurrence of $search with $replace. (Callers guarantee a
      * single occurrence, so this is effectively a unique replace.)
      */
@@ -305,7 +338,7 @@ final class SuggestionApplier
         $queryBuilder->getRestrictions()->removeAll()->add(new DeletedRestriction());
 
         $row = $queryBuilder
-            ->select('uid', 'pid', 'header', 'subheader', 'bodytext')
+            ->select('uid', 'pid', 'CType', 'header', 'subheader', 'bodytext')
             ->from('tt_content')
             ->where(
                 $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($elementUid, Connection::PARAM_INT)),
