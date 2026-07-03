@@ -67,7 +67,13 @@ final class ProcessQueueCommand extends Command
             $beUserId = (int)$job['be_user'];
 
             try {
-                $this->proofreadingService->proofreadPage($pageUid, $beUserId, $languageUid);
+                // Heartbeat the job as each pass settles, so a legitimately long
+                // run (many elements × slow reasoning calls) isn't reclaimed as a
+                // stale/abandoned job by an overlapping Scheduler invocation.
+                $heartbeat = function () use ($uid): void {
+                    $this->queue->heartbeat($uid);
+                };
+                $this->proofreadingService->proofreadPage($pageUid, $beUserId, $languageUid, $heartbeat);
                 $this->queue->delete($uid);
                 $processed++;
                 $io->writeln(sprintf('<info>Page %d proofread.</info>', $pageUid));

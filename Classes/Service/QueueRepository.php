@@ -25,8 +25,12 @@ final class QueueRepository
 
     private const TABLE = 'tx_aiproofread_queue';
 
-    // A job that has been "running" longer than this is treated as abandoned
-    // (worker OOM/timeout/deploy). A real run is minutes; 30 min is safely beyond.
+    // A running job whose heartbeat (tstamp) hasn't advanced for this long is
+    // treated as abandoned (worker OOM/timeout/deploy). The worker heartbeats as
+    // each of the N+1 passes settles, so a legitimately long multi-element run
+    // keeps refreshing and is NOT reclaimed — only a dead worker goes stale. This
+    // is comfortably beyond the longest a single pass can take (the request
+    // timeout, ≤600s with reasoning), which bounds the gap between heartbeats.
     private const STALE_RUNNING_SECONDS = 1800;
 
     public function __construct(
@@ -107,12 +111,33 @@ final class QueueRepository
     }
 
     /**
+     * Bump a running job's heartbeat (tstamp) so the reclaim treats it as alive.
+     * The worker calls this as each of the N+1 concurrent passes settles — since a
+     * single pass can take up to the request timeout, a long run keeps refreshing
+     * instead of tripping reclaimStaleRunning(). Guarded on status='running' so it
+     * can never resurrect a job that already finished, errored or was reclaimed.
+     */
+    public function heartbeat(int $uid): void
+    {
+        $this->connection()->update(
+            self::TABLE,
+            ['tstamp' => time()],
+            ['uid' => $uid, 'status' => self::RUNNING]
+        );
+    }
+
+    /**
      * Reclaim jobs stuck in "running": if a worker dies mid-run (timeout, fatal,
      * deploy) the row stays "running" forever — claimNext() only selects pending so
      * it is never retried, enqueue() refuses a new run, and the module shows
      * "wird erstellt …" indefinitely (auto-refreshing). Flip stale ones to "error"
      * so the page is un-wedged: the editor sees the failure, and a re-run is allowed
      * again (enqueue() clears the error row). Called at the start of each drain.
+     *
+     * Staleness is measured on the **heartbeat** (tstamp), not started_at: a live
+     * run bumps tstamp as each pass settles (see heartbeat()), so a legitimately
+     * long multi-element run — which can exceed the threshold in wall-clock — is
+     * not mistaken for a dead worker and killed while alive.
      *
      * @return int number of jobs reclaimed
      */
@@ -128,7 +153,7 @@ final class QueueRepository
             ->set('tstamp', time())
             ->where(
                 $queryBuilder->expr()->eq('status', $queryBuilder->createNamedParameter(self::RUNNING)),
-                $queryBuilder->expr()->lt('started_at', $queryBuilder->createNamedParameter($cutoff, Connection::PARAM_INT))
+                $queryBuilder->expr()->lt('tstamp', $queryBuilder->createNamedParameter($cutoff, Connection::PARAM_INT))
             )
             ->executeStatement();
     }

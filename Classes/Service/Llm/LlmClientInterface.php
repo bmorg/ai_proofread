@@ -28,7 +28,9 @@ interface LlmClientInterface
      * the batch nor loses the others, and the caller logs each outcome itself.
      *
      * @param list<array{system: string, userText: string, schema: array<string, mixed>}> $requests
+     * @param (callable(): void)|null $onProgress invoked once as each request
+     *        settles (fulfilled or rejected) — a hook for a long-run heartbeat.
      * @return list<LlmResult|LlmException>
      */
-    public function completeBatch(array $requests, int $concurrency): array;
+    public function completeBatch(array $requests, int $concurrency, ?callable $onProgress = null): array;
 }

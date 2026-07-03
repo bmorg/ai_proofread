@@ -43,9 +43,13 @@ final class ProofreadingService
      * with the run and the content element); a single failed pass fails the whole
      * run (surfaced to the queue job).
      *
+     * $onProgress, if given, is invoked as each pass settles — the queue worker
+     * uses it to heartbeat a long-running job so it isn't reclaimed as stale.
+     *
+     * @param (callable(): void)|null $onProgress
      * @return array<string, mixed> the merged three-bucket report
      */
-    public function proofreadPage(int $pageUid, int $beUserId, int $languageUid = 0): array
+    public function proofreadPage(int $pageUid, int $beUserId, int $languageUid = 0, ?callable $onProgress = null): array
     {
         $wholeText = $this->extractor->extractPageText($pageUid, $languageUid);
         if ($wholeText === '') {
@@ -77,7 +81,7 @@ final class ProofreadingService
         $elements[] = ['uid' => 0, 'label' => 'Gesamte Seite'];
 
         $startedAt = microtime(true);
-        $outcomes = $this->llm->completeBatch($requests, $this->maxConcurrency());
+        $outcomes = $this->llm->completeBatch($requests, $this->maxConcurrency(), $onProgress);
         $durationMs = (int)round((microtime(true) - $startedAt) * 1000);
 
         $findings = [];

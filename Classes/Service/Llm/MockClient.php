@@ -74,7 +74,7 @@ final class MockClient implements LlmClientInterface
         return new LlmResult($payload, 'mock', $inputTokens, $outputTokens, $requestBody, $responseBody);
     }
 
-    public function completeBatch(array $requests, int $concurrency): array
+    public function completeBatch(array $requests, int $concurrency, ?callable $onProgress = null): array
     {
         // No I/O, so concurrency is irrelevant — just map each request.
         $out = [];
@@ -87,6 +87,9 @@ final class MockClient implements LlmClientInterface
             );
             $result->durationMs = (int)round((microtime(true) - $start) * 1000);
             $out[] = $result;
+            if ($onProgress !== null) {
+                $onProgress();
+            }
         }
         return $out;
     }

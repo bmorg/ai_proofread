@@ -64,7 +64,7 @@ abstract class AbstractHttpLlmClient implements LlmClientInterface
         return $outcome;
     }
 
-    public function completeBatch(array $requests, int $concurrency): array
+    public function completeBatch(array $requests, int $concurrency, ?callable $onProgress = null): array
     {
         // Build all calls first; a build error (e.g. missing config) becomes that
         // item's outcome without aborting the others.
@@ -101,10 +101,13 @@ abstract class AbstractHttpLlmClient implements LlmClientInterface
                     'timeout' => $this->requestTimeout(),
                     'http_errors' => false,
                 ],
-                'fulfilled' => function (ResponseInterface $response, $i) use (&$results, $calls, &$starts): void {
+                'fulfilled' => function (ResponseInterface $response, $i) use (&$results, $calls, &$starts, $onProgress): void {
                     $results[$i] = $this->parseOutcome($calls[$i], $response, $this->elapsedMs($starts[$i] ?? null));
+                    if ($onProgress !== null) {
+                        $onProgress();
+                    }
                 },
-                'rejected' => function ($reason, $i) use (&$results, $calls, &$starts): void {
+                'rejected' => function ($reason, $i) use (&$results, $calls, &$starts, $onProgress): void {
                     $message = $reason instanceof \Throwable ? $reason->getMessage() : (string)$reason;
                     $e = new LlmException(
                         'HTTP-Anfrage fehlgeschlagen: ' . $message,
@@ -115,6 +118,9 @@ abstract class AbstractHttpLlmClient implements LlmClientInterface
                     );
                     $e->durationMs = $this->elapsedMs($starts[$i] ?? null);
                     $results[$i] = $e;
+                    if ($onProgress !== null) {
+                        $onProgress();
+                    }
                 },
             ]);
             $pool->promise()->wait();
