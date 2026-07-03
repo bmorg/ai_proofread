@@ -20,6 +20,10 @@
   HTML round-trip — such findings fall back to the edit-form deep-link.
 - The raw-markup `html` content element is no longer proofread (nonsense findings,
   wasted tokens).
+- Cleaner text extraction: every block-level boundary (`</li>`, headings, table
+  cells, …) now becomes a line break deterministically instead of relying on the
+  RTE's stored indentation — compact HTML no longer glues words together, and
+  CR/indentation artifacts no longer reach the model.
 
 ## [0.2.0] - 2026-06-29
 

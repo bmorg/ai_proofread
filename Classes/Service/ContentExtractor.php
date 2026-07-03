@@ -76,11 +76,38 @@ final class ContentExtractor
         $body = trim((string)($row['bodytext'] ?? ''));
         if ($body !== '') {
             // bodytext is RTE HTML for text CTypes; strip to plain readable text.
-            $body = html_entity_decode(strip_tags(str_replace(['</p>', '<br>', '<br/>', '<br />'], "\n", $body)), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $parts[] = trim($body);
+            $parts[] = $this->htmlToText($body);
         }
 
         return implode("\n\n", $parts);
+    }
+
+    /**
+     * Convert RTE HTML to the plain text the model proofreads. Every block-level
+     * boundary becomes a line break *deterministically* — relying on the RTE's
+     * stored indentation (inter-tag whitespace) to separate list items, headings
+     * or table cells breaks on compact HTML (pasted/imported content, other RTE
+     * presets), gluing words together ("Punkt 1Punkt 2") and producing false
+     * positives the applier can then never locate.
+     *
+     * Only whitespace *between* blocks is normalized (indentation around line
+     * breaks, CR, blank-line runs) — whitespace inside a text node is preserved
+     * byte-for-byte, so a model quote still matches its single DOM text node in
+     * SuggestionApplier::locate(). The whitespace-only nature of this cleanup
+     * also keeps hash() stable (it collapses all \s+ runs before hashing).
+     */
+    private function htmlToText(string $html): string
+    {
+        $text = str_replace("\r", '', $html);
+        $text = preg_replace('/<br\s*\/?>/i', "\n", $text) ?? $text;
+        $text = preg_replace('#</(p|li|h[1-6]|td|th|tr|div|blockquote|dt|dd|figcaption)>#i', "\n", $text) ?? $text;
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        // Tidy inter-block whitespace: drop indentation around breaks, collapse
+        // runs of blank lines to one blank line.
+        $text = preg_replace('/[ \t]*\n[ \t]*/', "\n", $text) ?? $text;
+        $text = preg_replace('/\n{3,}/', "\n\n", $text) ?? $text;
+
+        return trim($text);
     }
 
     /**
