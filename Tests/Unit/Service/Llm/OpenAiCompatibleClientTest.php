@@ -150,6 +150,18 @@ final class OpenAiCompatibleClientTest extends UnitTestCase
         $this->buildCall($this->createClient(['apiKey' => '   ']));
     }
 
+    /**
+     * An empty model slug (a Custom preset saved without one) must fail at build
+     * time with a pointed message — not as a provider 400 in a failed queue job.
+     */
+    public function testEmptyModelThrowsConfigurationError(): void
+    {
+        $this->expectException(LlmException::class);
+        $this->expectExceptionMessageMatches('/Kein Modell konfiguriert/');
+
+        $this->buildCall($this->createClient([], ['model' => '']));
+    }
+
     // -- response parsing ------------------------------------------------------
 
     /**

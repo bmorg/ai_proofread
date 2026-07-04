@@ -131,11 +131,16 @@ final class ProofreadingService
                 // so the review-and-fix UI can offer "apply" (write-back) and a
                 // deep-link to that element's edit form. The whole-page pass (above)
                 // owns pageFindings/other, which stay un-attributed by design.
-                foreach (($outcome->payload['findings'] ?? []) as $finding) {
-                    if (\is_array($finding)) {
-                        $finding['elementUid'] = (int)$element['uid'];
-                        $finding['elementLabel'] = (string)$element['label'];
+                // A non-array list or non-array items (possible in the non-strict
+                // output modes) are dropped rather than stored: they can't be
+                // rendered, but would inflate the finding progress total.
+                $elementFindings = $outcome->payload['findings'] ?? [];
+                foreach (\is_array($elementFindings) ? $elementFindings : [] as $finding) {
+                    if (!\is_array($finding)) {
+                        continue;
                     }
+                    $finding['elementUid'] = (int)$element['uid'];
+                    $finding['elementLabel'] = (string)$element['label'];
                     $findings[] = $finding;
                 }
             }

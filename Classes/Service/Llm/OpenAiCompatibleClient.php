@@ -83,6 +83,12 @@ final class OpenAiCompatibleClient extends AbstractHttpLlmClient
         if ($baseUrl === '') {
             throw new LlmException('Keine OpenAI-kompatible Basis-URL konfiguriert (Erweiterungskonfiguration ai_proofread).', $body, '', 1718700210);
         }
+        // Shipped presets always pin a slug — an empty model means the Custom
+        // preset was saved without one. Fail here with a pointed message instead
+        // of a provider 400 in a failed queue job later.
+        if (trim($model) === '') {
+            throw new LlmException('Kein Modell konfiguriert (KI-Lektorat → Einstellungen, Preset „Benutzerdefiniert“).', $body, '', 1718700217);
+        }
         if (trim((string)($this->config('apiKey') ?? '')) === '') {
             throw new LlmException('Kein API-Key konfiguriert (Erweiterungskonfiguration ai_proofread → Provider).', $body, '', 1718700216);
         }

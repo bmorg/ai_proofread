@@ -112,31 +112,37 @@ final class ReviewModuleController
         // redirect (PRG) back to the settings view.
         if ($isAdmin && $request->getMethod() === 'POST') {
             $body = \is_array($request->getParsedBody()) ? $request->getParsedBody() : [];
-            // Persist the custom values on every submit (setCustom normalizes them),
-            // so the admin's edits are remembered even while another preset is active
-            // and apply the moment they switch to "Benutzerdefiniert". An unchecked
-            // checkbox is simply absent from the body.
-            $this->activePreset->setCustom([
-                'model' => $body['customModel'] ?? '',
-                'reasoning' => isset($body['customReasoning']),
-                'maxTokens' => $body['customMaxTokens'] ?? 0,
-                'structuredOutput' => $body['customStructuredOutput'] ?? '',
-                'pinProvider' => $body['customPinProvider'] ?? '',
-            ]);
-            $candidate = ModelPreset::tryFrom((string)($body['preset'] ?? ''));
-            if ($candidate !== null) {
-                $this->activePreset->set($candidate);
+            // Gate on the preset field: the Einstellungen form always submits it
+            // (one radio is always checked), so any other POST reaching the module
+            // route must not fall through to a save — it would wipe the stored
+            // custom values with normalized empties.
+            if (isset($body['preset'])) {
+                // Persist the custom values on every submit (setCustom normalizes them),
+                // so the admin's edits are remembered even while another preset is active
+                // and apply the moment they switch to "Benutzerdefiniert". An unchecked
+                // checkbox is simply absent from the body.
+                $this->activePreset->setCustom([
+                    'model' => $body['customModel'] ?? '',
+                    'reasoning' => isset($body['customReasoning']),
+                    'maxTokens' => $body['customMaxTokens'] ?? 0,
+                    'structuredOutput' => $body['customStructuredOutput'] ?? '',
+                    'pinProvider' => $body['customPinProvider'] ?? '',
+                ]);
+                $candidate = ModelPreset::tryFrom((string)($body['preset'] ?? ''));
+                if ($candidate !== null) {
+                    $this->activePreset->set($candidate);
+                }
+                // Confirm the save across the PRG redirect. storeInSession survives the
+                // redirect; the named storeInSession arg lets us skip the severity arg,
+                // whose type differs across v11 (int) / v13 (ContextualFeedbackSeverity)
+                // — so this stays version-neutral and defaults to OK.
+                $this->flashMessageService->getMessageQueueByIdentifier()->enqueue(
+                    new FlashMessage('Modell-Einstellungen gespeichert.', '', storeInSession: true)
+                );
+                return new RedirectResponse(
+                    (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'view' => self::VIEW_SETTINGS])
+                );
             }
-            // Confirm the save across the PRG redirect. storeInSession survives the
-            // redirect; the named storeInSession arg lets us skip the severity arg,
-            // whose type differs across v11 (int) / v13 (ContextualFeedbackSeverity)
-            // — so this stays version-neutral and defaults to OK.
-            $this->flashMessageService->getMessageQueueByIdentifier()->enqueue(
-                new FlashMessage('Modell-Einstellungen gespeichert.', '', storeInSession: true)
-            );
-            return new RedirectResponse(
-                (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'view' => self::VIEW_SETTINGS])
-            );
         }
 
         // Mutating actions (run/mark): do, then redirect (PRG) to the clean URL.
@@ -331,9 +337,12 @@ final class ReviewModuleController
         }
 
         if ($isAjax) {
-            // No progress for a refused (read-only) request: $run was never loaded,
-            // so a computed 0/0 would overwrite the real progress line in the JS.
-            $progress = $canEdit ? $this->findingProgress($reportUid, $this->decodeReport($run)) : null;
+            // No progress for a refused (read-only) request or a stale/foreign
+            // reportUid ($run is null then): a computed 0/0 would overwrite the
+            // real progress line in the JS.
+            $progress = ($canEdit && $run !== null)
+                ? $this->findingProgress($reportUid, $this->decodeReport($run))
+                : null;
             return new JsonResponse([
                 'ok' => $ok,
                 'state' => $state,
