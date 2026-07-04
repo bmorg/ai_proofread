@@ -30,9 +30,11 @@ CREATE TABLE tx_aiproofread_report (
 
     model varchar(64) DEFAULT '' NOT NULL,
     report_json mediumtext,
-    categories varchar(64) DEFAULT '' NOT NULL,
+    -- Comma-joined Category values; all five shipped ones total 60 bytes, so
+    -- keep generous headroom for future categories.
+    categories varchar(255) DEFAULT '' NOT NULL,
 
-    cost_usd double(12,6) DEFAULT '0' NOT NULL,
+    cost_usd decimal(12,6) DEFAULT '0' NOT NULL,
     duration_ms int(11) unsigned DEFAULT '0' NOT NULL,
     content_hash varchar(64) DEFAULT '' NOT NULL,
 
@@ -114,7 +116,7 @@ CREATE TABLE tx_aiproofread_log (
 
     input_tokens int(11) unsigned DEFAULT '0' NOT NULL,
     output_tokens int(11) unsigned DEFAULT '0' NOT NULL,
-    cost_usd double(12,6) DEFAULT '0' NOT NULL,
+    cost_usd decimal(12,6) DEFAULT '0' NOT NULL,
     duration_ms int(11) unsigned DEFAULT '0' NOT NULL,
 
     success smallint(5) unsigned DEFAULT '0' NOT NULL,
