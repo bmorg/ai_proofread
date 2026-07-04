@@ -55,7 +55,7 @@ final class SuggestionApplierTest extends FunctionalTestCase
     {
         $this->loginAdmin();
 
-        $status = $this->applier->apply(1, 10, 'unsrer', 'unserer', 1);
+        $status = $this->applier->apply(1, 10, 'unsrer', 'unserer');
 
         self::assertSame(SuggestionApplier::APPLIED, $status);
         self::assertSame('Willkommen auf unserer Seite', $this->fetchElement(10)['header']);
@@ -74,7 +74,7 @@ final class SuggestionApplierTest extends FunctionalTestCase
         $locate = $this->applier->locate(1, 10, 'Fehlern drin');
         self::assertTrue($locate->applicable);
 
-        $status = $this->applier->apply(1, 10, 'Fehlern drin', 'Fehler drin', 1);
+        $status = $this->applier->apply(1, 10, 'Fehlern drin', 'Fehler drin');
 
         self::assertSame(SuggestionApplier::APPLIED, $status);
         $bodytext = (string)$this->fetchElement(10)['bodytext'];
@@ -97,7 +97,7 @@ final class SuggestionApplierTest extends FunctionalTestCase
         $locate = $this->applier->locate(1, 11, 'a & b');
         self::assertFalse($locate->applicable);
 
-        $status = $this->applier->apply(1, 11, 'a & b', 'a und b', 1);
+        $status = $this->applier->apply(1, 11, 'a & b', 'a und b');
 
         self::assertSame(SuggestionApplier::UNSUPPORTED, $status);
         self::assertSame('Produkt|a & b|Preis', $this->fetchElement(11)['bodytext']);
@@ -107,7 +107,7 @@ final class SuggestionApplierTest extends FunctionalTestCase
     {
         $this->loginAdmin();
 
-        $status = $this->applier->apply(1, 11, '2023', '2026', 1);
+        $status = $this->applier->apply(1, 11, '2023', '2026');
 
         self::assertSame(SuggestionApplier::APPLIED, $status);
         self::assertSame('Preisliste 2026', $this->fetchElement(11)['header']);
@@ -118,7 +118,7 @@ final class SuggestionApplierTest extends FunctionalTestCase
         $this->setUpBackendUser(2);
         Bootstrap::initializeLanguageObject();
 
-        $status = $this->applier->apply(1, 10, 'unsrer', 'unserer', 2);
+        $status = $this->applier->apply(1, 10, 'unsrer', 'unserer');
 
         self::assertSame(SuggestionApplier::NO_PERMISSION, $status);
         self::assertSame('Willkommen auf unsrer Seite', $this->fetchElement(10)['header']);
@@ -130,7 +130,7 @@ final class SuggestionApplierTest extends FunctionalTestCase
 
         // Element 10 lives on page 1 — resolving it through page 2 must fail
         // (the pid scoping that keeps hand-crafted elementUids on the gated page).
-        $status = $this->applier->apply(2, 10, 'unsrer', 'unserer', 1);
+        $status = $this->applier->apply(2, 10, 'unsrer', 'unserer');
 
         self::assertSame(SuggestionApplier::NOT_FOUND, $status);
         self::assertSame('Willkommen auf unsrer Seite', $this->fetchElement(10)['header']);

@@ -79,10 +79,11 @@ final class SuggestionApplier
 
     /**
      * Apply the suggestion: locate the quote, then write the corrected field via
-     * DataHandler as the current BE user. Returns a status constant; only APPLIED
-     * means the content changed.
+     * DataHandler as the current BE user ($GLOBALS['BE_USER'] — whose permissions
+     * are checked and who is recorded in sys_history). Returns a status constant;
+     * only APPLIED means the content changed.
      */
-    public function apply(int $pageUid, int $elementUid, string $quote, string $suggestion, int $beUser): string
+    public function apply(int $pageUid, int $elementUid, string $quote, string $suggestion): string
     {
         $row = $this->loadElement($pageUid, $elementUid);
         if ($row === null || $quote === '') {
@@ -185,10 +186,11 @@ final class SuggestionApplier
             }
         }
 
-        // An unsupported-bodytext hit counts like a candidate for ambiguity: a
-        // quote that also occurs in the guarded field can't be safely attributed
-        // to the editable one.
-        if (\count($candidates) + ($unsupportedBodyHit ? 1 : 0) > 1) {
+        // A bodytext hit that can't be applied still counts toward ambiguity —
+        // whether in a guarded non-RTE field or spanning markup in an RTE field:
+        // a quote that also occurs there can't be safely attributed to the
+        // cleanly matched field.
+        if (\count($candidates) + ($unsupportedBodyHit ? 1 : 0) + ($spanOnlyInBody ? 1 : 0) > 1) {
             // Same quote present in more than one field — too risky to guess which.
             return ['status' => self::AMBIGUOUS, 'field' => '', 'newValue' => '', 'before' => '', 'after' => ''];
         }
@@ -247,7 +249,16 @@ final class SuggestionApplier
             }
         }
 
-        if ($totalCount === 1 && $matchNode !== null) {
+        // Occurrences in the concatenated element text — beyond the node-local
+        // ones this also finds occurrences spanning markup boundaries. More of
+        // these than node-local ones means the quote also exists spanning markup:
+        // applying to the node-local hit could then edit the wrong instance. (The
+        // separator-less concatenation can also fabricate matches across block
+        // boundaries; refusing those too errs on the safe side — the finding
+        // falls back to the deep-link.)
+        $fullTextCount = $fullText !== '' ? substr_count($fullText, $quote) : 0;
+
+        if ($totalCount === 1 && $fullTextCount <= 1 && $matchNode !== null) {
             $value = $matchNode->nodeValue ?? '';
             $before = $this->contextBefore($value, $quote);
             $after = $this->contextAfter($value, $quote);
@@ -260,12 +271,12 @@ final class SuggestionApplier
             return ['count' => 1, 'spanContains' => false, 'newValue' => $out, 'before' => $before, 'after' => $after];
         }
 
-        if ($totalCount > 1) {
-            return ['count' => $totalCount, 'spanContains' => false, 'newValue' => null, 'before' => '', 'after' => ''];
+        if ($totalCount > 1 || $fullTextCount > 1) {
+            return ['count' => max($totalCount, $fullTextCount), 'spanContains' => false, 'newValue' => null, 'before' => '', 'after' => ''];
         }
 
         // Not within any single text node: does it appear only across boundaries?
-        return ['count' => 0, 'spanContains' => $fullText !== '' && str_contains($fullText, $quote), 'newValue' => null, 'before' => '', 'after' => ''];
+        return ['count' => 0, 'spanContains' => $fullTextCount > 0, 'newValue' => null, 'before' => '', 'after' => ''];
     }
 
     /**

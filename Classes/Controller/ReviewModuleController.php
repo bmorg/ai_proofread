@@ -290,10 +290,21 @@ final class ReviewModuleController
                     $state = FindingStateRepository::DISMISSED;
                     $message = 'Hinweis verworfen.';
                 } elseif ($action === 'reopen') {
-                    $this->findingStates->clearState($reportUid, $index);
-                    $ok = true;
-                    $state = 'open';
-                    $message = 'Hinweis wiederhergestellt.';
+                    // Only manual/dismissed decisions are reopenable. An applied
+                    // (accepted) suggestion is undone via TYPO3 record history, not
+                    // by reopening — the UI hides reopen there, so reaching this
+                    // branch for one means a stale or hand-crafted URL: refuse,
+                    // and report the finding's actual state back.
+                    $current = $this->findingStates->statesFor($reportUid)[$index] ?? '';
+                    if (\in_array($current, [FindingStateRepository::MANUAL, FindingStateRepository::DISMISSED], true)) {
+                        $this->findingStates->clearState($reportUid, $index);
+                        $ok = true;
+                        $state = 'open';
+                        $message = 'Hinweis wiederhergestellt.';
+                    } else {
+                        $state = $current === '' ? 'open' : $current;
+                        $message = 'Dieser Hinweis kann nicht wiederhergestellt werden.';
+                    }
                 } elseif ($action === 'manual') {
                     // The editor fixed it themselves (e.g. via the edit form, or for
                     // a finding that wasn't auto-applyable) — record it as resolved
@@ -307,8 +318,7 @@ final class ReviewModuleController
                         $pageUid,
                         (int)($finding['elementUid'] ?? 0),
                         (string)($finding['quote'] ?? ''),
-                        (string)($finding['suggestion'] ?? ''),
-                        $beUser
+                        (string)($finding['suggestion'] ?? '')
                     );
                     $ok = $status === SuggestionApplier::APPLIED;
                     if ($ok) {

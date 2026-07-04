@@ -126,6 +126,38 @@ final class SuggestionApplierAnalyzeTest extends UnitTestCase
         self::assertSame('', $result['newValue']);
     }
 
+    public function testTextNodeHitPlusSpanningHitInSameBodytextIsAmbiguous(): void
+    {
+        // One clean single-text-node occurrence — but the same quote also spans
+        // markup later in the element. The extracted text the model saw contains
+        // it twice, so the node-local hit may be the wrong instance; refuse.
+        $row = $this->textElement([
+            'bodytext' => '<p>Ein guter Satz steht hier.</p><p>Ein <strong>guter</strong> Satz steht dort.</p>',
+        ]);
+
+        $result = $this->applier->analyze($row, 'Ein guter Satz', 'Ein toller Satz');
+
+        self::assertSame(SuggestionApplier::AMBIGUOUS, $result['status']);
+        self::assertSame('', $result['newValue']);
+    }
+
+    public function testHeaderHitPlusSpanningBodytextHitIsAmbiguous(): void
+    {
+        // The quote matches the header uniquely, but also spans markup in the RTE
+        // bodytext — the finding may have come from either field; never guess.
+        // (Counterpart to the guarded non-RTE case below: an unappliable bodytext
+        // hit must count toward ambiguity, not be silently ignored.)
+        $row = $this->textElement([
+            'header' => 'Der wichtige Satz',
+            'bodytext' => '<p>Hier steht der <strong>wichtige</strong> Satz nochmal.</p>',
+        ]);
+
+        $result = $this->applier->analyze($row, 'wichtige Satz', 'wichtigen Satz');
+
+        self::assertSame(SuggestionApplier::AMBIGUOUS, $result['status']);
+        self::assertSame('', $result['newValue']);
+    }
+
     public function testMarkupFullyInsideQuoteIsSpansMarkup(): void
     {
         // The quote starts and ends in plain text but contains a <strong> span —
