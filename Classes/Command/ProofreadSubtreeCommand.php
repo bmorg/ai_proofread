@@ -23,10 +23,16 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  *
  * LLM calls are slow and cost money, so bulk runs belong here (queued via the
  * TYPO3 Scheduler or run from the CLI) rather than synchronously in the module.
- * Unchanged elements that already carry a current report are skipped, so a
- * re-run only spends tokens on what actually changed.
+ * Unchanged pages that already carry a current report are skipped (content
+ * hash), so a re-run only spends tokens on what actually changed.
  *
  * Registered as a console command in Configuration/Services.yaml.
+ *
+ * Known limitation: a page whose run throws (one failed LLM pass) aborts the
+ * whole command — the remaining pages are never processed and the summary never
+ * prints. Should be a per-page catch-report-continue, like ProcessQueueCommand
+ * does per job. Note also that this command is entirely untested: no automated
+ * coverage, and unlike the queue path it has not been exercised in production.
  */
 final class ProofreadSubtreeCommand extends Command
 {

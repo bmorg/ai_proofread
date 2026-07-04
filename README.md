@@ -17,6 +17,7 @@ This is an early exploratory version with serious limitations:
 - **German content only.** The A.I. prompt was optimized over multiple iterations for German language content only!
 - **Single backend: OpenRouter** The general idea is to support generic OpenAI-compatible backends, but I have not been able to test this with anything other than OpenRouter yet. There can be serious limitations with availability and strictness of the required JSON output format that need to be tested.
 - **Single page language only.** So far, only l=0 can be checked.
+- **No workspace support.** The extension reads and reports on live content only; workspaces are ignored and untested.
 - Only **tested** on Typo3 11. Targets Typo3 11-13, but 12-13 are thus untested.
 
 ## How it works

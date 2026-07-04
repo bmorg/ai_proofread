@@ -333,10 +333,11 @@ final class ProofreadingService
             // Only when the Gendern category is on AND a house style is set: clearing
             // the style means "no house style" (per the setting), and emitting it while
             // empty produced the garbled "Beim Gendern ist die Hausschreibweise: .".
-            ($genderEnabled && $genderInclusiveStyle !== '')
-                ? 'Beim Gendern ist die Hausschreibweise: ' . $genderInclusiveStyle . '.'
-                : null,
-            '',
+            // The trailing blank line is spread in with it, so omitting the entry
+            // doesn't leave a double blank line in the prompt.
+            ...($genderEnabled && $genderInclusiveStyle !== ''
+                ? ['Beim Gendern ist die Hausschreibweise: ' . $genderInclusiveStyle . '.', '']
+                : []),
             'Gliedere deine Rückmeldung in drei Felder:',
             'findings = eindeutige, sichere Fehler in den genannten Kategorien, deren Korrektur die Bedeutung NICHT verändert. '
             . 'Felder: category (eine der Kennungen: ' . $categoryIds . '), quote (exaktes Originalzitat), suggestion (korrigierte Fassung), '

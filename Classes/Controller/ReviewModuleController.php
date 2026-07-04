@@ -567,6 +567,9 @@ final class ReviewModuleController
         ));
 
         $rows = [];
+        // Decodes every run's report_json for the per-category counts — reports
+        // accumulate forever, so this wants a cap/pagination eventually (see
+        // CLAUDE.md → "Possible future improvements").
         foreach ($this->reports->findByPage($pageUid) as $run) {
             $report = $this->decodeReport($run);
             $byCategory = [];
