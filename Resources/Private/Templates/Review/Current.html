@@ -85,12 +85,14 @@
 .aiproofread-advisory { margin-top: 1.5em; padding-top: .5em; border-top: 2px solid #e1e4e8; }
 .aiproofread-advisory-head { font-size: 1.2em; margin-bottom: .1em; }
 .aiproofread-advisory-intro { color: #6c757d; font-size: .9em; margin-bottom: .6em; }
-.aiproofread-note {
-    padding: .4rem .6rem; margin-bottom: .4rem;
-    background: #fafafa; border-left: 3px solid #adb5bd; border-radius: 2px;
-}
-.aiproofread-note--page { border-left-color: #0a7ea4; }
-.aiproofread-note .aiproofread-rec { display: block; margin-top: .2em; color: #555; font-size: .85em; }
+/* Advisory cards: same visual language as the finding cards — meta in a muted
+   header strip, the observation in full-size primary ink, the recommendation
+   as a green-tinted footer row. */
+.aiproofread-advice { border: 1px solid #d0d0d0; border-radius: 3px; margin-bottom: .6rem; max-width: 52rem; overflow: hidden; }
+.aiproofread-advice-head { padding: .25rem .6rem; background: #f1f3f5; border-bottom: 1px solid #e1e4e8; font-size: .82em; color: #495057; }
+.aiproofread-advice-body { padding: .5rem .6rem; color: #212529; line-height: 1.5; }
+.aiproofread-advice-rec { padding: .4rem .6rem; background: #fafafa; border-top: 1px solid #ececec; color: #555; font-size: .9em; line-height: 1.45; }
+.aiproofread-advice-rec .lbl { font-weight: 600; color: #495057; }
 </style>
 
 <f:if condition="{noAccess}">
@@ -223,10 +225,16 @@
                 <details class="aiproofread-section" open="open">
                     <summary>Seitenweite Hinweise ({pageFindings -> f:count()})</summary>
                     <f:for each="{pageFindings}" as="pf">
-                        <div class="aiproofread-note aiproofread-note--page">
-                            <strong>{pf.label}:</strong> {pf.observation}
+                        <div class="aiproofread-advice">
+                            <f:comment>The section already says "seitenweit" — the head
+                            carries just the category (absent for the unknown-category
+                            edge of non-strict output modes).</f:comment>
+                            <f:if condition="{pf.label}">
+                                <div class="aiproofread-advice-head">{pf.label}</div>
+                            </f:if>
+                            <div class="aiproofread-advice-body">{pf.observation}</div>
                             <f:if condition="{pf.suggestion}">
-                                <span class="aiproofread-rec">Empfehlung: {pf.suggestion}</span>
+                                <div class="aiproofread-advice-rec"><span class="lbl">Empfehlung:</span> {pf.suggestion}</div>
                             </f:if>
                         </div>
                     </f:for>
@@ -237,7 +245,9 @@
                 <details class="aiproofread-section" open="open">
                     <summary>Weitere Hinweise ({other -> f:count()})</summary>
                     <f:for each="{other}" as="note">
-                        <div class="aiproofread-note">{note}</div>
+                        <div class="aiproofread-advice">
+                            <div class="aiproofread-advice-body">{note}</div>
+                        </div>
                     </f:for>
                 </details>
             </f:if>
