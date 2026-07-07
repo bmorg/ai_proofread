@@ -1,10 +1,9 @@
 # AI Proof Reader for Typo3
 
-*An exercise in vibe-coding. Fully developed by Claude Code / Opus 4.8 - heavily guided and reviewed, but almost no code was handwritten.*
-
 AI-assisted proofreading for TYPO3 page content. Detects issues
 like spelling, punctuation, grammar, gender-inclusive language, style.
-Results are shown in a dedicated report.
+Results are shown in a dedicated report, where suggestions can be
+applied to the content with one click.
 
 > **Status: alpha.** Works and is in production use on TYPO3 11, but has **not** been widely tested.
 > See "Limitations" below.
@@ -12,11 +11,11 @@ Results are shown in a dedicated report.
 
 ## Limitations
 
-This is an early exploratory version with serious limitations:
+This is an early exploratory version with quite some limitations:
 
-- **German content only.** The A.I. prompt was optimized over multiple iterations for German language content only!
-- **Single backend: OpenRouter** The general idea is to support generic OpenAI-compatible backends, but I have not been able to test this with anything other than OpenRouter yet. There can be serious limitations with availability and strictness of the required JSON output format that need to be tested.
-- **Single page language only.** So far, only l=0 can be checked.
+- **German content only.** The A.I. prompt was optimized over multiple iterations for German language content.
+- **Single backend: OpenRouter** The general idea is to support generic OpenAI-compatible backends, but I have not been able to test this with anything other than OpenRouter yet. The extension currently relies on a strict JSON output format.
+- **Single page language only.** So far, only L=0 is checked.
 - **No workspace support.** The extension reads and reports on live content only; workspaces are ignored and untested.
 - Only **tested** on Typo3 11. Targets Typo3 11-13, but 12-13 are thus untested.
 
@@ -25,14 +24,17 @@ This is an early exploratory version with serious limitations:
 - Access the new module **"KI-Lektorat"** from any page:
 
   <img src=".github/images/docheader.png" alt="KI-Lektorat module in document header" width="600"/>
-  
+
 - Checks need to be scheduled ("Report erstellen"). Depending on settings the check can take multiple minutes.
 
   <img src=".github/images/schedule-check.png" alt="Schedule check" width="600"/>
-  
+
 - When ready, the report is automatically shown:
 
   <img src=".github/images/report.png" alt="Generated report view" width="600"/>
+
+- Findings can be auto-applied (where possible), marked as manually applied or discarded.
+- When done, mark the report as "Geprüft" to update the header icon and statistics.
 
 ## Installation
 
@@ -46,13 +48,13 @@ Or download via [Github Releases](https://github.com/bmorg/ai_proofread/releases
 
 In the TYPO3 backend:
 
-1. **Database migration** Via Admin Tools → Maintenance → Analyze Database Structure
-2. Extension configuration (see below).
+1. **Database tables** are created on install.
+2. Adapt extension configuration (see below).
 3. **Scheduler task** Register the command **`aiproofread:process-queue`** as a recurring Scheduler task (every 60s).
 
 ## Configuration
 
-# 1. Extension settings
+### 1. Extension settings
 
 Admin Tools → Settings → Extension Configuration → `ai_proofread`
 
@@ -80,9 +82,15 @@ And for the LLM prompt:
 
 Comes with a few preconfigured models for testing.
 
-Recommended:
+Recommendations:
 - **Reasoning on** gives much better results (slower and more expensive).
 - **Pin a provider** (e.g. `anthropic`) if the default routing lands on providers that e.g. don't return the required JSON.
+
+## Development
+
+This is an exercise in vibe-coding. Fully developed by Claude Code (Opus 4.8 and Fable 5) - heavily guided and reviewed, but almost no code was handwritten.
+
+Contributions are welcome, although some form of human involvement is much encouraged.
 
 ## License
 
