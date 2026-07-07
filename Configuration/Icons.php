@@ -16,4 +16,23 @@ return [
         'provider' => SvgIconProvider::class,
         'source' => 'EXT:ai_proofread/Resources/Public/Icons/robot.svg',
     ],
+    // State variants of the docheader robot (see AddProofreadButton::decorationFor):
+    // a run is queued/running, the last run failed, a report awaits review, page
+    // is signed off.
+    'aiproofread-robot-clock' => [
+        'provider' => SvgIconProvider::class,
+        'source' => 'EXT:ai_proofread/Resources/Public/Icons/robot-clock.svg',
+    ],
+    'aiproofread-robot-warning' => [
+        'provider' => SvgIconProvider::class,
+        'source' => 'EXT:ai_proofread/Resources/Public/Icons/robot-warning.svg',
+    ],
+    'aiproofread-robot-info' => [
+        'provider' => SvgIconProvider::class,
+        'source' => 'EXT:ai_proofread/Resources/Public/Icons/robot-info.svg',
+    ],
+    'aiproofread-robot-check' => [
+        'provider' => SvgIconProvider::class,
+        'source' => 'EXT:ai_proofread/Resources/Public/Icons/robot-check.svg',
+    ],
 ];

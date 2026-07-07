@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>AI Proofreader Robot (warning)</title>
+
+  <mask id="aiproofreadFace">
+    <rect width="64" height="64" fill="#fff"/>
+
+    <!-- eye sockets (cut) -->
+    <rect x="11" y="14" width="17" height="16" rx="1" fill="#000"/>
+    <rect x="36" y="14" width="17" height="16" rx="1" fill="#000"/>
+    <!-- pupils (restored) -->
+    <rect x="17" y="20" width="5" height="4" fill="#fff"/>
+    <rect x="42" y="20" width="5" height="4" fill="#fff"/>
+
+    <!-- stepped smile -->
+    <rect x="15" y="32" width="4" height="3" rx="1" fill="#000"/>
+    <rect x="21" y="34" width="4" height="3" rx="1" fill="#000"/>
+    <rect x="27" y="35" width="4" height="3" rx="1" fill="#000"/>
+    <rect x="33" y="35" width="4" height="3" rx="1" fill="#000"/>
+    <rect x="39" y="34" width="4" height="3" rx="1" fill="#000"/>
+    <rect x="45" y="32" width="4" height="3" rx="1" fill="#000"/>
+
+    <!-- chest panel (cut as a framed inset) -->
+    <rect x="15" y="47" width="34" height="14" rx="1" fill="#000"/>
+
+    <!-- clear a gap around the rectangular badge -->
+    <rect x="27" y="27" width="40" height="40" rx="4" fill="#000"/>
+  </mask>
+
+  <g fill="currentColor" mask="url(#aiproofreadFace)">
+    <!-- ARMS -->
+    <rect x="1"  y="47" width="9"  height="12" rx="1"/>
+    <rect x="54" y="47" width="9"  height="12" rx="1"/>
+    <!-- BODY -->
+    <rect x="9" y="44" width="46" height="19" rx="2"/>
+    <!-- NECK -->
+    <rect x="25" y="39" width="14" height="6"/>
+    <!-- EAR TABS -->
+    <rect x="2"  y="19" width="7"  height="13" rx="1"/>
+    <rect x="55" y="19" width="7"  height="13" rx="1"/>
+    <!-- ANTENNA -->
+    <rect x="30" y="5" width="4"  height="7"/>
+    <rect x="26" y="1" width="12" height="7" rx="1"/>
+    <!-- HEAD -->
+    <rect x="7" y="10" width="50" height="30" rx="2"/>
+  </g>
+
+  <!-- BIG RECT BADGE: base tint + subtle brightening overlay -->
+  <rect x="30" y="30" width="34" height="34" rx="3" fill="currentColor"/>
+  <rect x="30" y="30" width="34" height="34" rx="3" fill="#fff" opacity="0.18"/>
+
+  <!-- WARNING triangle (knocked out) with "!" inside -->
+  <path d="M47 37 L58 56 L36 56 Z"
+        fill="none" stroke="#fff"
+        stroke-width="3" stroke-linejoin="round"/>
+  <g fill="#fff">
+    <rect x="45.6" y="45" width="2.8" height="6"/>
+    <rect x="45.6" y="52.5" width="2.8" height="2.8"/>
+  </g>
+</svg>
