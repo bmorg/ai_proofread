@@ -81,6 +81,44 @@ final class ReportRepository
     }
 
     /**
+     * The newest run per page, keyed by page uid — the install-wide counterpart
+     * of findLatestByPage(), for the Statistik view. "Newest" is resolved via
+     * MAX(uid): rows are append-only with crdate = insert time, so the highest
+     * uid per page is the newest run.
+     *
+     * Callers must intersect the page uids with the live pages they care about —
+     * this includes runs of pages that were since deleted or moved.
+     *
+     * @return array<int, array<string, mixed>> page uid => report row
+     */
+    public function latestRunPerPage(): array
+    {
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable(self::TABLE);
+        $latestUids = $queryBuilder
+            ->selectLiteral('MAX(uid) AS latest_uid')
+            ->from(self::TABLE)
+            ->groupBy('page_uid')
+            ->executeQuery()
+            ->fetchFirstColumn();
+
+        $runs = [];
+        // Chunked so the IN() list stays within DB parameter limits (sqlite: 999).
+        foreach (array_chunk(array_map('intval', $latestUids), 500) as $chunk) {
+            $chunkQuery = $this->connectionPool->getQueryBuilderForTable(self::TABLE);
+            $rows = $chunkQuery
+                ->select('*')
+                ->from(self::TABLE)
+                ->where($chunkQuery->expr()->in('uid', $chunkQuery->createNamedParameter($chunk, Connection::PARAM_INT_ARRAY)))
+                ->executeQuery()
+                ->fetchAllAssociative();
+            foreach ($rows as $row) {
+                $runs[(int)$row['page_uid']] = $row;
+            }
+        }
+        return $runs;
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function findByUid(int $uid): ?array

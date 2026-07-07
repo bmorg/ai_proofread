@@ -14,6 +14,7 @@ use Bmorg\AiProofread\Service\ProofreadingService;
 use Bmorg\AiProofread\Service\QueueRepository;
 use Bmorg\AiProofread\Service\ReportRepository;
 use Bmorg\AiProofread\Service\ReviewRepository;
+use Bmorg\AiProofread\Service\StatisticsService;
 use Bmorg\AiProofread\Service\SuggestionApplier;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -37,7 +38,9 @@ use TYPO3\CMS\Fluid\View\StandaloneView;
  *  - "Aktueller Report": status + the latest report for the page (open unless
  *    signed off).
  *  - "Report-Verlauf": the history of report runs for the page.
- *  - "API-Verlauf": the technical audit log of every LLM call.
+ *  - "Statistik" (admin-only): install-wide coverage + finding-outcome metrics.
+ *  - "API-Verlauf" (admin-only): the technical audit log of every LLM call.
+ *  - "Einstellungen" (admin-only): the site-wide model preset.
  *
  * The default landing depends on status: a signed-off ("geprüft") page opens on
  * Report-Verlauf, otherwise on Aktueller Report. Run / mark happen via tokenized
@@ -46,8 +49,8 @@ use TYPO3\CMS\Fluid\View\StandaloneView;
  * {@see moduleResponse()}): v11/12 use setContent()/renderContent(), v13 (where
  * those were removed) uses assign('content', …) + renderResponse().
  *
- * Access: the API-Verlauf (global audit log) and Einstellungen are admin-only;
- * every other view is gated by read permission on the requested page. Mutating
+ * Access: Statistik, the API-Verlauf (global audit log) and Einstellungen are
+ * admin-only; every other view is gated by read permission on the requested page. Mutating
  * actions — run (a paid LLM job), mark (sign-off), and the finding decisions
  * apply/dismiss/manual/reopen — additionally require content-edit permission on
  * the page; for read-only users the report is visible but action-free.
@@ -56,6 +59,7 @@ final class ReviewModuleController
 {
     private const VIEW_CURRENT = 'current';
     private const VIEW_REPORTS = 'reports';
+    private const VIEW_STATS = 'stats';
     private const VIEW_HISTORY = 'history';
     private const VIEW_SETTINGS = 'settings';
 
@@ -72,6 +76,7 @@ final class ReviewModuleController
         private readonly FlashMessageService $flashMessageService,
         private readonly SuggestionApplier $applier,
         private readonly FindingStateRepository $findingStates,
+        private readonly StatisticsService $statistics,
     ) {
     }
 
@@ -207,17 +212,19 @@ final class ReviewModuleController
         if ($error !== '') {
             $view = self::VIEW_CURRENT;
         }
-        // Admin-only views: the API-Verlauf (global audit log — full page content +
-        // cost of every call, system-wide) and Einstellungen (the site-wide model
-        // setting). A non-admin requesting either (stale link/hand-crafted URL)
-        // falls back to the current view.
-        if (\in_array($view, [self::VIEW_HISTORY, self::VIEW_SETTINGS], true) && !$isAdmin) {
+        // Admin-only views: Statistik (install-wide metrics), the API-Verlauf
+        // (global audit log — full page content + cost of every call,
+        // system-wide) and Einstellungen (the site-wide model setting). A
+        // non-admin requesting any of them (stale link/hand-crafted URL) falls
+        // back to the current view.
+        if (\in_array($view, [self::VIEW_STATS, self::VIEW_HISTORY, self::VIEW_SETTINGS], true) && !$isAdmin) {
             $view = self::VIEW_CURRENT;
         }
 
         $this->addViewMenu($moduleTemplate, $pageUid, $view, $isAdmin);
 
         return match ($view) {
+            self::VIEW_STATS => $this->statsResponse($moduleTemplate),
             self::VIEW_HISTORY => $this->historyResponse($request, $moduleTemplate, $pageUid, $isAdmin),
             self::VIEW_SETTINGS => $this->settingsResponse($moduleTemplate, $pageUid),
             self::VIEW_REPORTS => $this->reportsResponse($moduleTemplate, $pageUid, $review, $status, $jobPending, $jobError, $canEdit),
@@ -237,10 +244,11 @@ final class ReviewModuleController
             self::VIEW_CURRENT => 'Aktueller Report',
             self::VIEW_REPORTS => 'Report-Verlauf',
         ];
-        // API-Verlauf and Einstellungen are admin-only (see handleRequest).
+        // Statistik, API-Verlauf and Einstellungen are admin-only (see handleRequest).
         if ($isAdmin) {
-            $items[self::VIEW_HISTORY] = 'API-Verlauf';
             $items[self::VIEW_SETTINGS] = 'Einstellungen';
+            $items[self::VIEW_STATS] = 'Statistik';
+            $items[self::VIEW_HISTORY] = 'API-Verlauf';
         }
 
         foreach ($items as $key => $title) {
@@ -395,6 +403,21 @@ final class ReviewModuleController
         $done = \count(array_filter(array_keys($states), static fn (int $i): bool => $i < $total));
 
         return ['total' => $total, 'done' => $done, 'open' => max(0, $total - $done)];
+    }
+
+    // -- Statistik view (admin-only) ------------------------------------------
+
+    /**
+     * Install-wide success metrics: coverage of content pages and the outcome
+     * of findings (fixed via the queue / dismissed / still open). Admin-only;
+     * ignores the page context, like Einstellungen.
+     */
+    private function statsResponse(ModuleTemplate $moduleTemplate): ResponseInterface
+    {
+        return $this->moduleResponse(
+            $moduleTemplate,
+            $this->renderView('Review/Stats.html', $this->statistics->collect())
+        );
     }
 
     // -- Einstellungen view (admin-only) -------------------------------------

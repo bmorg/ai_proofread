@@ -1,0 +1,8 @@
+"pages",,,,,,
+,"uid","pid","title","doktype","deleted","sys_language_uid"
+,1,0,"Seite A",1,0,0
+,2,0,"Seite B",1,0,0
+,3,0,"Seite C",1,0,0
+,4,0,"Ordner",254,0,0
+,5,0,"Gelöscht",1,1,0
+,6,2,"Seite B (EN)",1,0,1

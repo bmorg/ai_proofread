@@ -36,6 +36,25 @@ final class ReviewRepository
     }
 
     /**
+     * All sign-off timestamps, keyed by page uid (for the Statistik view's
+     * install-wide coverage buckets).
+     *
+     * @return array<int, int> page uid => proofed_at
+     */
+    public function proofedAtByPage(): array
+    {
+        $rows = $this->connection()
+            ->select(['page_uid', 'proofed_at'], self::TABLE)
+            ->fetchAllAssociative();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int)$row['page_uid']] = (int)$row['proofed_at'];
+        }
+        return $map;
+    }
+
+    /**
      * Record that the editor signed off on the page now.
      */
     public function markProofed(int $pageUid, int $beUser): void

@@ -1,0 +1,82 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<style>
+.aiproofread-stats { max-width: 56rem; }
+.aiproofread-tiles { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0 1.5rem; }
+.aiproofread-tile {
+    flex: 1 1 12rem; min-width: 11rem;
+    border: 1px solid #d0d0d0; border-radius: 3px;
+    padding: .7rem .9rem; background: #fff;
+}
+.aiproofread-tile .label { display: block; color: #6c757d; font-size: .85em; margin-bottom: .15rem; }
+.aiproofread-tile .value { display: block; font-weight: 600; font-size: 1.6em; color: #212529; }
+.aiproofread-tile .detail { display: block; color: #6c757d; font-size: .8em; margin-top: .2rem; }
+/* Coverage meter: fill and track are steps of the same (module-accent) hue. */
+.aiproofread-meter { height: 6px; border-radius: 3px; background: #cde5ee; margin-top: .55rem; overflow: hidden; }
+.aiproofread-meter > span { display: block; height: 100%; background: #0a7ea4; }
+.aiproofread-stats table { max-width: 28rem; }
+.aiproofread-stats .num { text-align: right; font-variant-numeric: tabular-nums; }
+.aiproofread-stats h2 { margin-top: 1.5rem; }
+.aiproofread-stats .method-note { color: #6c757d; font-size: .85em; max-width: 48rem; }
+</style>
+
+<div class="aiproofread-stats">
+    <h1>KI-Lektorat — Statistik</h1>
+    <p>
+        Abdeckung und Ergebnisse über die gesamte Seite hinweg
+    </p>
+
+    <div class="aiproofread-tiles">
+        <div class="aiproofread-tile">
+            <span class="label">Report erstellt</span>
+            <span class="value">{checkedPages} von {totalPages}</span>
+            <span class="detail">{checkedPercent}&nbsp;% der Inhaltsseiten</span>
+            <div class="aiproofread-meter"><span style="width: {checkedPercent}%"></span></div>
+        </div>
+        <div class="aiproofread-tile">
+            <span class="label">Behobene Funde</span>
+            <span class="value">{fixedTotal}</span>
+            <span class="detail">{fixedAccepted} übernommen &middot; {fixedManual} manuell erledigt</span>
+        </div>
+        <div class="aiproofread-tile">
+            <span class="label">Verworfen</span>
+            <span class="value">{dismissed}</span>
+            <span class="detail">als nicht zutreffend abgelehnt</span>
+        </div>
+        <div class="aiproofread-tile">
+            <span class="label">Offene Hinweise</span>
+            <span class="value">{openTotal}</span>
+            <span class="detail">in den aktuellen Reports</span>
+        </div>
+    </div>
+
+    <h2>Abdeckung</h2>
+    <table class="table table-striped">
+        <tbody>
+            <tr><td>Geprüft (freigegeben)</td><td class="num">{proofedPages}</td></tr>
+            <tr><td>Report erstellt, noch nicht geprüft</td><td class="num">{reportCreatedPages}</td></tr>
+            <tr><td>Ohne Report</td><td class="num">{uncheckedPages}</td></tr>
+            <tr><th>Inhaltsseiten gesamt</th><th class="num">{totalPages}</th></tr>
+        </tbody>
+    </table>
+
+    <f:if condition="{openByCategory -> f:count()} > 0">
+        <h2>Offene Hinweise nach Kategorie</h2>
+        <table class="table table-striped">
+            <tbody>
+                <f:for each="{openByCategory}" as="row">
+                    <tr><td>{row.label}</td><td class="num">{row.count}</td></tr>
+                </f:for>
+            </tbody>
+        </table>
+    </f:if>
+
+    <p class="method-note">
+        „Behoben“ zählt Hinweise, die über die Report-Ansicht übernommen oder als manuell
+        erledigt markiert wurden — über alle Läufe hinweg, auch wenn sie in neueren Reports
+        nicht mehr auftauchen. Direkt im Seiteninhalt behobene Fehler ohne Markierung im
+        Report werden nicht mitgezählt.
+    </p>
+</div>
+
+</html>

@@ -71,6 +71,32 @@ final class FindingStateRepository
     }
 
     /**
+     * Cumulative decision counts by status, across ALL runs (for the Statistik
+     * view). Decisions persist per run, so accepted/manual keep crediting fixes
+     * whose findings no longer appear in newer reports — the "25 found, all
+     * fixed, next report shows 0" case still counts as 25.
+     *
+     * @return array<string, int> status => count
+     */
+    public function countByStatus(): array
+    {
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable(self::TABLE);
+        $rows = $queryBuilder
+            ->select('status')
+            ->addSelectLiteral('COUNT(*) AS cnt')
+            ->from(self::TABLE)
+            ->groupBy('status')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $counts = [];
+        foreach ($rows as $row) {
+            $counts[(string)$row['status']] = (int)$row['cnt'];
+        }
+        return $counts;
+    }
+
+    /**
      * Clear a finding's decision, returning it to "open" (used by the dismiss-undo).
      */
     public function clearState(int $reportUid, int $findingIndex): void
