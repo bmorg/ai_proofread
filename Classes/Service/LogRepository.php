@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Bmorg\AiProofread\Service;
 
+use Bmorg\AiProofread\Service\Llm\MockClient;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 
 /**
  * Append-only audit log of every LLM call. Records the full request and
@@ -93,6 +95,93 @@ final class LogRepository
             ->fetchAssociative();
 
         return $row ?: null;
+    }
+
+    /**
+     * Aggregated API usage over a crdate window (0 = unbounded), for the
+     * Statistik view's cost metrics. Mock calls are excluded throughout — they
+     * are free and would dilute counts and averages. "runs" counts distinct
+     * reports; "runCostUsd" is the share of the cost attributable to those
+     * runs (failed runs log with report_uid = 0), the denominator-matching
+     * base for a per-run average, while "costUsd" is the full spend including
+     * failed runs.
+     *
+     * @return array{calls: int, runs: int, costUsd: float, runCostUsd: float, inputTokens: int, outputTokens: int}
+     */
+    public function costTotals(int $from = 0, int $until = 0): array
+    {
+        $queryBuilder = $this->costQuery();
+        $queryBuilder->selectLiteral(
+            'COUNT(*) AS calls',
+            'COUNT(DISTINCT CASE WHEN report_uid > 0 THEN report_uid END) AS runs',
+            'SUM(cost_usd) AS cost_usd',
+            'SUM(CASE WHEN report_uid > 0 THEN cost_usd ELSE 0 END) AS run_cost_usd',
+            'SUM(input_tokens) AS input_tokens',
+            'SUM(output_tokens) AS output_tokens'
+        );
+        if ($from > 0) {
+            $queryBuilder->andWhere($queryBuilder->expr()->gte('crdate', $queryBuilder->createNamedParameter($from, Connection::PARAM_INT)));
+        }
+        if ($until > 0) {
+            $queryBuilder->andWhere($queryBuilder->expr()->lt('crdate', $queryBuilder->createNamedParameter($until, Connection::PARAM_INT)));
+        }
+        $row = $queryBuilder->executeQuery()->fetchAssociative() ?: [];
+
+        return [
+            'calls' => (int)($row['calls'] ?? 0),
+            'runs' => (int)($row['runs'] ?? 0),
+            'costUsd' => (float)($row['cost_usd'] ?? 0),
+            'runCostUsd' => (float)($row['run_cost_usd'] ?? 0),
+            'inputTokens' => (int)($row['input_tokens'] ?? 0),
+            'outputTokens' => (int)($row['output_tokens'] ?? 0),
+        ];
+    }
+
+    /**
+     * The same aggregates grouped by model, all-time, most expensive first
+     * (mock excluded, like {@see costTotals}).
+     *
+     * @return list<array{model: string, calls: int, runs: int, costUsd: float, runCostUsd: float}>
+     */
+    public function costByModel(): array
+    {
+        $queryBuilder = $this->costQuery();
+        $rows = $queryBuilder
+            ->select('model')
+            ->addSelectLiteral(
+                'COUNT(*) AS calls',
+                'COUNT(DISTINCT CASE WHEN report_uid > 0 THEN report_uid END) AS runs',
+                'SUM(cost_usd) AS cost_usd',
+                'SUM(CASE WHEN report_uid > 0 THEN cost_usd ELSE 0 END) AS run_cost_usd'
+            )
+            ->groupBy('model')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[] = [
+                'model' => (string)$row['model'],
+                'calls' => (int)$row['calls'],
+                'runs' => (int)$row['runs'],
+                'costUsd' => (float)$row['cost_usd'],
+                'runCostUsd' => (float)$row['run_cost_usd'],
+            ];
+        }
+        // Sorted in PHP, not SQL: ORDER BY an aggregate alias is not portable
+        // across the supported DB platforms.
+        usort($result, static fn (array $a, array $b): int => $b['costUsd'] <=> $a['costUsd']);
+        return $result;
+    }
+
+    /** Base query for the cost aggregates: the log table minus mock calls. */
+    private function costQuery(): QueryBuilder
+    {
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable(self::TABLE);
+        $queryBuilder
+            ->from(self::TABLE)
+            ->where($queryBuilder->expr()->neq('model', $queryBuilder->createNamedParameter(MockClient::MODEL)));
+        return $queryBuilder;
     }
 
     private function insert(array $fields): void

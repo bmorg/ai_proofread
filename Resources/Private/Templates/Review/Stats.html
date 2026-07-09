@@ -15,9 +15,33 @@
 .aiproofread-meter { height: 6px; border-radius: 3px; background: #cde5ee; margin-top: .55rem; overflow: hidden; }
 .aiproofread-meter > span { display: block; height: 100%; background: #0a7ea4; }
 .aiproofread-stats table { max-width: 28rem; }
+.aiproofread-stats table.wide { max-width: 44rem; }
 .aiproofread-stats .num { text-align: right; font-variant-numeric: tabular-nums; }
 .aiproofread-stats h2 { margin-top: 1.5rem; }
 .aiproofread-stats .method-note { color: #6c757d; font-size: .85em; max-width: 48rem; }
+/* CSS-only tabs (no JS, per the extension's rule): the hidden radios carry the
+   state, the labels are the tab bar, :checked ~ shows the matching panel. The
+   radios stay focusable (clip, not display:none) so keyboard switching works. */
+.aiproofread-tabs > input[type="radio"] {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+}
+.aiproofread-tabbar { display: flex; gap: .25rem; border-bottom: 1px solid #d0d0d0; margin: 1.5rem 0 0; }
+.aiproofread-tabbar label {
+    padding: .45rem 1.1rem; cursor: pointer; color: #6c757d;
+    border: 1px solid transparent; border-radius: 3px 3px 0 0; margin-bottom: -1px;
+}
+#aiproofread-tab-results:checked ~ .aiproofread-tabbar label[for="aiproofread-tab-results"],
+#aiproofread-tab-costs:checked ~ .aiproofread-tabbar label[for="aiproofread-tab-costs"] {
+    border-color: #d0d0d0 #d0d0d0 #fff; background: #fff; color: #212529; font-weight: 600;
+}
+#aiproofread-tab-results:focus-visible ~ .aiproofread-tabbar label[for="aiproofread-tab-results"],
+#aiproofread-tab-costs:focus-visible ~ .aiproofread-tabbar label[for="aiproofread-tab-costs"] {
+    outline: 2px solid #0a7ea4; outline-offset: -2px;
+}
+.aiproofread-tabpanel { display: none; padding-top: .25rem; }
+#aiproofread-tab-results:checked ~ .aiproofread-tabpanel-results,
+#aiproofread-tab-costs:checked ~ .aiproofread-tabpanel-costs { display: block; }
 </style>
 
 <div class="aiproofread-stats">
@@ -50,33 +74,126 @@
         </div>
     </div>
 
-    <h2>Abdeckung</h2>
-    <table class="table table-striped">
-        <tbody>
-            <tr><td>Geprüft (freigegeben)</td><td class="num">{proofedPages}</td></tr>
-            <tr><td>Report erstellt, noch nicht geprüft</td><td class="num">{reportCreatedPages}</td></tr>
-            <tr><td>Ohne Report</td><td class="num">{uncheckedPages}</td></tr>
-            <tr><th>Inhaltsseiten gesamt</th><th class="num">{totalPages}</th></tr>
-        </tbody>
-    </table>
+    <div class="aiproofread-tabs">
+        <input type="radio" name="aiproofread-tab" id="aiproofread-tab-results" checked="checked">
+        <input type="radio" name="aiproofread-tab" id="aiproofread-tab-costs">
+        <nav class="aiproofread-tabbar">
+            <label for="aiproofread-tab-results">Ergebnisse</label>
+            <label for="aiproofread-tab-costs">Kosten</label>
+        </nav>
 
-    <f:if condition="{openByCategory -> f:count()} > 0">
-        <h2>Offene Hinweise nach Kategorie</h2>
-        <table class="table table-striped">
-            <tbody>
-                <f:for each="{openByCategory}" as="row">
-                    <tr><td>{row.label}</td><td class="num">{row.count}</td></tr>
-                </f:for>
-            </tbody>
-        </table>
-    </f:if>
+        <section class="aiproofread-tabpanel aiproofread-tabpanel-results">
+            <h2>Abdeckung</h2>
+            <table class="table table-striped">
+                <tbody>
+                    <tr><td>Geprüft (freigegeben)</td><td class="num">{proofedPages}</td></tr>
+                    <tr><td>Report erstellt, noch nicht geprüft</td><td class="num">{reportCreatedPages}</td></tr>
+                    <tr><td>Ohne Report</td><td class="num">{uncheckedPages}</td></tr>
+                    <tr><th>Inhaltsseiten gesamt</th><th class="num">{totalPages}</th></tr>
+                </tbody>
+            </table>
 
-    <p class="method-note">
-        „Behoben“ zählt Hinweise, die über die Report-Ansicht übernommen oder als manuell
-        erledigt markiert wurden — über alle Läufe hinweg, auch wenn sie in neueren Reports
-        nicht mehr auftauchen. Direkt im Seiteninhalt behobene Fehler ohne Markierung im
-        Report werden nicht mitgezählt.
-    </p>
+            <f:if condition="{openByCategory -> f:count()} > 0">
+                <h2>Offene Hinweise nach Kategorie</h2>
+                <table class="table table-striped">
+                    <tbody>
+                        <f:for each="{openByCategory}" as="row">
+                            <tr><td>{row.label}</td><td class="num">{row.count}</td></tr>
+                        </f:for>
+                    </tbody>
+                </table>
+            </f:if>
+
+            <p class="method-note">
+                „Behoben“ zählt Hinweise, die über die Report-Ansicht übernommen oder als manuell
+                erledigt markiert wurden — über alle Reports hinweg, auch wenn sie in neueren Reports
+                nicht mehr auftauchen. Direkt im Seiteninhalt behobene Fehler ohne Markierung im
+                Report werden nicht mitgezählt.
+            </p>
+        </section>
+
+        <section class="aiproofread-tabpanel aiproofread-tabpanel-costs">
+            <f:if condition="{cost.calls} > 0">
+                <f:then>
+                    <div class="aiproofread-tiles">
+                        <div class="aiproofread-tile">
+                            <span class="label">Gesamtkosten</span>
+                            <span class="value">{cost.total}</span>
+                            <span class="detail">{cost.runs} Reports &middot; {cost.calls} API-Aufrufe &middot; {cost.totalTokensFormatted} Tokens</span>
+                        </div>
+                        <div class="aiproofread-tile">
+                            <span class="label">Laufender Monat</span>
+                            <span class="value">{cost.currentMonth}</span>
+                            <span class="detail">{cost.currentMonthLabel}</span>
+                        </div>
+                        <div class="aiproofread-tile">
+                            <span class="label">Ø pro Report</span>
+                            <span class="value">{cost.perRun}</span>
+                            <span class="detail">über {cost.runs} Reports</span>
+                        </div>
+                    </div>
+
+                    <h2>Kosten pro Monat</h2>
+                    <table class="table table-striped wide">
+                        <thead>
+                            <tr>
+                                <th>Monat</th>
+                                <th class="num">Kosten</th>
+                                <th class="num">Reports</th>
+                                <th class="num">API-Aufrufe</th>
+                                <th class="num">Tokens</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <f:for each="{cost.months}" as="month">
+                                <tr>
+                                    <td>{month.label}</td>
+                                    <td class="num">{month.cost}</td>
+                                    <td class="num">{month.runs}</td>
+                                    <td class="num">{month.calls}</td>
+                                    <td class="num">{month.tokensFormatted}</td>
+                                </tr>
+                            </f:for>
+                        </tbody>
+                    </table>
+
+                    <h2>Kosten nach Modell</h2>
+                    <table class="table table-striped wide">
+                        <thead>
+                            <tr>
+                                <th>Modell</th>
+                                <th class="num">Kosten</th>
+                                <th class="num">Reports</th>
+                                <th class="num">API-Aufrufe</th>
+                                <th class="num">Ø pro Report</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <f:for each="{cost.byModel}" as="model">
+                                <tr>
+                                    <td>{model.model}</td>
+                                    <td class="num">{model.cost}</td>
+                                    <td class="num">{model.runs}</td>
+                                    <td class="num">{model.calls}</td>
+                                    <td class="num">{model.perRun}</td>
+                                </tr>
+                            </f:for>
+                        </tbody>
+                    </table>
+
+                    <p class="method-note">
+                        Kosten in US-Dollar, wie von OpenRouter pro Aufruf gemeldet. Aufrufe, für die
+                        das Backend keine Kosten meldet, zählen mit $0 — die Summen sind daher
+                        Untergrenzen. Fehlgeschlagene Prüfungen zählen zu den Gesamtkosten, aber nicht in
+                        den Durchschnitt pro Report.
+                    </p>
+                </f:then>
+                <f:else>
+                    <p class="method-note">Noch keine API-Aufrufe protokolliert.</p>
+                </f:else>
+            </f:if>
+        </section>
+    </div>
 </div>
 
 </html>

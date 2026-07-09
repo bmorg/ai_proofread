@@ -16,6 +16,12 @@ namespace Bmorg\AiProofread\Service\Llm;
  */
 final class MockClient implements LlmClientInterface
 {
+    /**
+     * The model name mock calls are logged under. The cost statistics filter
+     * on it — mock calls are free and must not dilute the spend numbers.
+     */
+    public const MODEL = 'mock';
+
     public function complete(string $systemPrompt, string $userText, array $jsonSchema): LlmResult
     {
         $allowed = $jsonSchema['properties']['findings']['items']['properties']['category']['enum'] ?? [];
@@ -45,7 +51,7 @@ final class MockClient implements LlmClientInterface
         // Mirror the real (OpenAI-compatible) client's request/response shapes so
         // the audit log is representative. Model "mock" has no reported cost.
         $requestBody = [
-            'model' => 'mock',
+            'model' => self::MODEL,
             'messages' => [
                 ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => $userText],
@@ -58,7 +64,7 @@ final class MockClient implements LlmClientInterface
         $inputTokens = (int)ceil(mb_strlen($systemPrompt . $userText) / 4);
         $outputTokens = (int)ceil(mb_strlen($jsonText) / 4);
         $responseBody = [
-            'model' => 'mock',
+            'model' => self::MODEL,
             'choices' => [[
                 'index' => 0,
                 'finish_reason' => 'stop',
@@ -71,7 +77,7 @@ final class MockClient implements LlmClientInterface
             ],
         ];
 
-        return new LlmResult($payload, 'mock', $inputTokens, $outputTokens, $requestBody, $responseBody);
+        return new LlmResult($payload, self::MODEL, $inputTokens, $outputTokens, $requestBody, $responseBody);
     }
 
     public function completeBatch(array $requests, int $concurrency, ?callable $onProgress = null): array

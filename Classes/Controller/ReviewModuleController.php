@@ -414,10 +414,42 @@ final class ReviewModuleController
      */
     private function statsResponse(ModuleTemplate $moduleTemplate): ResponseInterface
     {
+        $stats = $this->statistics->collect();
+        $stats['cost'] = $this->formatCostMetrics($stats['cost']);
+
         return $this->moduleResponse(
             $moduleTemplate,
-            $this->renderView('Review/Stats.html', $this->statistics->collect())
+            $this->renderView('Review/Stats.html', $stats)
         );
+    }
+
+    /**
+     * Turns the raw USD/token numbers from StatisticsService into display
+     * strings ("–" where the denominator is zero), keeping the counts as-is.
+     * Aggregated sums read best at two decimals — the 4-decimal formatCost()
+     * stays for the per-call/per-run views, where fractions of a cent matter.
+     *
+     * @param array<string, mixed> $cost
+     * @return array<string, mixed>
+     */
+    private function formatCostMetrics(array $cost): array
+    {
+        $cost['total'] = $this->formatCostRounded((float)$cost['totalUsd']);
+        $cost['currentMonth'] = $this->formatCostRounded((float)$cost['currentMonthUsd']);
+        $cost['perRun'] = $cost['perRunUsd'] === null ? '–' : $this->formatCostRounded((float)$cost['perRunUsd']);
+        $cost['totalTokensFormatted'] = $this->formatTokens((int)$cost['totalTokens']);
+        foreach ($cost['months'] as &$month) {
+            $month['cost'] = $this->formatCostRounded((float)$month['costUsd']);
+            $month['tokensFormatted'] = $this->formatTokens((int)$month['tokens']);
+        }
+        unset($month);
+        foreach ($cost['byModel'] as &$model) {
+            $model['cost'] = $this->formatCostRounded((float)$model['costUsd']);
+            $model['perRun'] = $model['perRunUsd'] === null ? '–' : $this->formatCostRounded((float)$model['perRunUsd']);
+        }
+        unset($model);
+
+        return $cost;
     }
 
     // -- Einstellungen view (admin-only) -------------------------------------
@@ -1001,6 +1033,18 @@ final class ReviewModuleController
     private function formatCost(float $costUsd): string
     {
         return '$' . number_format($costUsd, 4, '.', ',');
+    }
+
+    /** Two-decimal variant for the Statistik view's aggregated sums. */
+    private function formatCostRounded(float $costUsd): string
+    {
+        return '$' . number_format($costUsd, 2, '.', ',');
+    }
+
+    /** German-locale integer formatting for large token counts. */
+    private function formatTokens(int $tokens): string
+    {
+        return number_format($tokens, 0, ',', '.');
     }
 
     private function formatDuration(int $durationMs): string

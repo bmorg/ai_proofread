@@ -34,11 +34,21 @@ final class StatisticsService
      */
     private const DOKTYPE_STANDARD = 1;
 
+    /** German month names for the cost breakdown labels (1-indexed). */
+    private const MONTHS = [
+        1 => 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+        'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+    ];
+
+    /** How far back the monthly cost breakdown looks. */
+    private const COST_MONTHS = 12;
+
     public function __construct(
         private readonly ConnectionPool $connectionPool,
         private readonly ReportRepository $reports,
         private readonly ReviewRepository $reviews,
         private readonly FindingStateRepository $findingStates,
+        private readonly LogRepository $logs,
     ) {
     }
 
@@ -89,7 +99,76 @@ final class StatisticsService
             'dismissed' => $dismissed,
             'openTotal' => $openTotal,
             'openByCategory' => $openByCategory,
+            'cost' => $this->costMetrics(),
         ];
+    }
+
+    /**
+     * API spend, sourced from the audit log (the complete record — it includes
+     * calls of failed runs, which the report table misses; mock calls are
+     * excluded in the repository). All raw numbers; USD formatting is the
+     * controller's job.
+     *
+     * @return array<string, mixed>
+     */
+    private function costMetrics(): array
+    {
+        $allTime = $this->logs->costTotals();
+        $monthStart = mktime(0, 0, 0, (int)date('n'), 1, (int)date('Y'));
+        $currentMonth = $this->logs->costTotals($monthStart);
+
+        $byModel = [];
+        foreach ($this->logs->costByModel() as $row) {
+            $row['perRunUsd'] = $row['runs'] > 0 ? $row['runCostUsd'] / $row['runs'] : null;
+            $byModel[] = $row;
+        }
+
+        return [
+            'calls' => $allTime['calls'],
+            'runs' => $allTime['runs'],
+            'totalUsd' => $allTime['costUsd'],
+            'totalTokens' => $allTime['inputTokens'] + $allTime['outputTokens'],
+            'currentMonthUsd' => $currentMonth['costUsd'],
+            'currentMonthLabel' => self::MONTHS[(int)date('n')] . ' ' . date('Y'),
+            // Per-run average over run-attributed spend only, so calls of
+            // failed runs (report_uid = 0) don't skew it.
+            'perRunUsd' => $allTime['runs'] > 0 ? $allTime['runCostUsd'] / $allTime['runs'] : null,
+            'months' => $this->monthlyCosts(),
+            'byModel' => $byModel,
+        ];
+    }
+
+    /**
+     * Per-calendar-month spend for the last COST_MONTHS months, newest first,
+     * months without any (non-mock) call omitted. Bucketing happens here via
+     * crdate windows — SQL date functions aren't portable across the supported
+     * DB platforms (functional tests run on sqlite).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function monthlyCosts(): array
+    {
+        $year = (int)date('Y');
+        $month = (int)date('n');
+
+        $rows = [];
+        for ($i = 0; $i < self::COST_MONTHS; $i++) {
+            // mktime() normalizes out-of-range months across year boundaries.
+            $start = mktime(0, 0, 0, $month - $i, 1, $year);
+            $end = mktime(0, 0, 0, $month - $i + 1, 1, $year);
+            $totals = $this->logs->costTotals($start, $end);
+            if ($totals['calls'] === 0) {
+                continue;
+            }
+            $rows[] = [
+                'label' => self::MONTHS[(int)date('n', $start)] . ' ' . date('Y', $start),
+                'calls' => $totals['calls'],
+                'runs' => $totals['runs'],
+                'costUsd' => $totals['costUsd'],
+                'tokens' => $totals['inputTokens'] + $totals['outputTokens'],
+            ];
+        }
+        return $rows;
     }
 
     /**
