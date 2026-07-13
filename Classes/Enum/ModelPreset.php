@@ -24,16 +24,25 @@ namespace Bmorg\AiProofread\Enum;
  * The {@see Custom} case is the one exception to "curated only": it pins nothing here,
  * and its effective params are the admin-entered values held in
  * {@see \Bmorg\AiProofread\Service\ActivePreset} (Registry), edited in the same view.
+ *
+ * Roster last validated 2026-07 against the measured comparisons in
+ * model-experiments/experiments/ (dev-only, not shipped): Opus 4.8 =
+ * zero-false-positive default; GPT-5.6 Sol = deepest affordable recall;
+ * Fable 5 = Sol-level recall at near-Opus cleanliness, ~3x the price;
+ * GPT-5.6 Luna = budget tier (~$0.13/check at solid recall — earned the slot
+ * in the 2026-07 imperative-extras experiment). Dropped on evidence: Sonnet
+ * 4.6 (silent near-empty reports), GLM 5.2 (unparseable output under free
+ * routing), Qwen 3.7 Plus (weak recall, non-verbatim quotes), Gemini 3.5
+ * Flash (never cheap in practice — reasoning cost dominates — and dominated
+ * by better models at equal cost). Removed cases resolve to the default via
+ * {@see fromKey()}.
  */
 enum ModelPreset: string
 {
     case Opus48 = 'opus-4.8';
-    case GPT55 = 'gpt-5.5';
-    case Qwen37Plus = 'qwen-3.7-plus';
-    case GLM52 = 'glm-5.2';
-    case Gemini35Flash = 'gemini-3.5-flash';
-    case Opus48NoReasoning = 'opus';
-    case Sonnet46 = 'sonnet-4.6';
+    case GPT56Sol = 'gpt-5.6-sol';
+    case Fable5 = 'fable-5';
+    case GPT56Luna = 'gpt-5.6-luna';
     case Custom = 'custom';
 
     /**
@@ -43,12 +52,9 @@ enum ModelPreset: string
     {
         return match ($this) {
             self::Opus48 => 'Claude Opus 4.8 · Reasoning (Anthropic)',
-            self::GPT55 => 'GPT 5.5 · Reasoning (OpenAI)',
-            self::Qwen37Plus => 'Qwen 3.7 Plus (Alibaba)',
-            self::GLM52 => 'GLM 5.2 (Z.ai)',
-            self::Gemini35Flash => 'Gemini 3.5 Flash (Google)',
-            self::Opus48NoReasoning => 'Claude Opus 4.8 · No Reasoning (Anthropic)',
-            self::Sonnet46 => 'Claude Sonnet 4.6 · Reasoning (Anthropic)',
+            self::GPT56Sol => 'GPT 5.6 Sol · Reasoning (OpenAI)',
+            self::Fable5 => 'Claude Fable 5 · Reasoning (Anthropic)',
+            self::GPT56Luna => 'GPT 5.6 Luna · Reasoning (OpenAI)',
             self::Custom => 'Benutzerdefiniert',
         };
     }
@@ -69,49 +75,26 @@ enum ModelPreset: string
                 'structuredOutput' => 'json_schema',
                 'pinProvider' => 'anthropic',
             ],
-            self::GPT55 => [
-                'model' => 'openai/gpt-5.5',
+            self::GPT56Sol => [
+                'model' => 'openai/gpt-5.6-sol',
                 'reasoning' => true,
                 'maxTokens' => 0, // auto
                 'structuredOutput' => 'json_schema',
                 'pinProvider' => '',
             ],
-            self::Qwen37Plus => [
-                'model' => 'qwen/qwen3.7-plus',
+            self::Fable5 => [
+                'model' => 'anthropic/claude-fable-5',
                 'reasoning' => true,
-                'maxTokens' => 0, // auto
-                'structuredOutput' => 'json_schema',
-                'pinProvider' => '',
-            ],
-            self::GLM52 => [
-                'model' => 'z-ai/glm-5.2',
-                'reasoning' => true,
-                'maxTokens' => 0, // auto
-                'structuredOutput' => 'json_schema',
-                'pinProvider' => '',
-            ],
-            self::Gemini35Flash => [
-                'model' => 'google/gemini-3.5-flash',
-                'reasoning' => true,
-                'maxTokens' => 0, // auto
-                'structuredOutput' => 'json_schema',
-                'pinProvider' => '',
-            ],
-            self::Opus48NoReasoning => [
-                'model' => 'anthropic/claude-opus-4.8',
-                'reasoning' => false,
                 'maxTokens' => 0, // auto
                 'structuredOutput' => 'json_schema',
                 'pinProvider' => 'anthropic',
             ],
-            self::Sonnet46 => [
-                'model' => 'anthropic/claude-sonnet-4.6',
+            self::GPT56Luna => [
+                'model' => 'openai/gpt-5.6-luna',
                 'reasoning' => true,
-                // Sonnet is a verbose reasoner that has exhausted lower budgets
-                // and silently truncated the report (see CLAUDE.md); give it room.
-                'maxTokens' => 48000,
+                'maxTokens' => 0, // auto
                 'structuredOutput' => 'json_schema',
-                'pinProvider' => 'anthropic',
+                'pinProvider' => '',
             ],
             // Pins nothing: the effective values are the admin-entered ones held in
             // ActivePreset (Registry), resolved via ActivePreset::effectiveSettings().

@@ -80,11 +80,22 @@ And for the LLM prompt:
 
 ### 2. Model selection (KI-Lektorat → Dropdown: Einstellungen)
 
-Comes with a few preconfigured models for testing.
+Ships with a set of preconfigured models.
+
+The current prompt was tested against a set of ~25 frontier models with a sample page and scored against
+a set of expected finds (+ false-positives).
+
+| Preset | Findings                                                                |
+|---|-------------------------------------------------------------------------|
+| **Claude Opus 4.8** (default) | finds most errors; no false positives; sightly cheaper than Sol |
+| **GPT 5.6 Sol** | found all must-finds; low false positives; costly                       |
+| **Claude Fable 5** | found all must-finds; low false positives; prohibitively costly (~3× Sol) |
+| **GPT 5.6 Luna** | finds most errors; few false positives; fast; cheap (0.2× Sol)          |
 
 Recommendations:
 - **Reasoning on** gives much better results (slower and more expensive).
 - **Pin a provider** (e.g. `anthropic`) if the default routing lands on providers that e.g. don't return the required JSON.
+  - When using `extraPromptInstructions` (see above), use strict language, e.g. "Korrigiere NIE Anführungszeichen". Permissive wording ("kann ignoriert werden") will get ignored by some models.
 
 ## Development
 

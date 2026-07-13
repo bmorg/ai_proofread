@@ -7,7 +7,7 @@ maxConcurrency = 0
 # cat=backend/general; type=string; label=Site description: A short noun phrase describing the site, given to the model as context. E.g. "ein Bäckerei-Verzeichnis" or "ein Online-Shop für Fahrräder". Leave empty for a generic website.
 siteDescription =
 
-# cat=backend/general; type=string; label=Extra prompt instructions / site-specific rules: Appended to the system prompt for per-site or per-endpoint tuning. E.g. Sei bei Stilfragen besonders zurückhaltend.
+# cat=backend/general; type=string; label=Extra prompt instructions / site-specific rules: Appended to the system prompt for per-site or per-endpoint tuning. E.g. "Korrigiere NIE Anführungszeichen."
 extraPromptInstructions =
 
 # cat=backend/general; type=boolean; label=Use mock backend (testing): Return a fake report without calling any API (no key, no cost).
