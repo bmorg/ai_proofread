@@ -95,14 +95,15 @@ final class ProofreadingServicePromptTest extends UnitTestCase
     }
 
     /**
-     * Unset keys fall back to ExtensionSettings::DEFAULTS: both optional
-     * categories on, shipped gender style present.
+     * Unset keys fall back to ExtensionSettings::DEFAULTS: gender-inclusive
+     * language on, shipped gender style present. (Style is not a category —
+     * it never appears in the checklist; it lives in the free-text `other` bucket.)
      */
     public function testDefaultsApplyWhenNothingIsConfigured(): void
     {
         $prompt = $this->createService([])->buildSystemPrompt();
 
-        self::assertStringContainsString('(style)', $prompt);
+        self::assertStringNotContainsString('(style)', $prompt);
         self::assertStringContainsString('(gender-inclusive-language)', $prompt);
         self::assertStringContainsString(
             'Beim Gendern ist die Hausschreibweise: Doppelpunkt (z.B. Nutzer:innen).',
@@ -143,14 +144,16 @@ final class ProofreadingServicePromptTest extends UnitTestCase
      */
     public function testSchemaEnumTracksEnabledCategories(): void
     {
-        $schema = $this->createService(['enableStyle' => '0'])->buildSchema();
+        $schema = $this->createService(['enableGenderInclusiveLanguage' => '0'])->buildSchema();
 
         $findingsEnum = $schema['properties']['findings']['items']['properties']['category']['enum'];
         $pageFindingsEnum = $schema['properties']['pageFindings']['items']['properties']['category']['enum'];
 
         self::assertSame($findingsEnum, $pageFindingsEnum);
         self::assertContains('spelling', $findingsEnum);
-        self::assertContains('gender-inclusive-language', $findingsEnum);
+        self::assertContains('grammar', $findingsEnum);
+        self::assertNotContains('gender-inclusive-language', $findingsEnum);
+        // Style is not a category at all — never in the enum, toggle or not.
         self::assertNotContains('style', $findingsEnum);
     }
 }

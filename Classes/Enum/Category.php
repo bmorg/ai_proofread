@@ -14,7 +14,10 @@ enum Category: string
     case Grammar = 'grammar';
     case Punctuation = 'punctuation';
     case GenderInclusiveLanguage = 'gender-inclusive-language';
-    case Style = 'style';
+
+    // Note: there is no Style case. Style is never a localized finding — the
+    // prompt routes all stylistic feedback to the free-text `other` bucket — so
+    // it is not a structured category (no schema enum value, no report section).
 
     /**
      * Lower number = listed first (report sections and the Report-Verlauf columns).
@@ -26,7 +29,6 @@ enum Category: string
             self::Punctuation => 2,
             self::Grammar => 3,
             self::GenderInclusiveLanguage => 4,
-            self::Style => 5,
         };
     }
 
@@ -40,7 +42,6 @@ enum Category: string
             self::Grammar => 'Grammatik',
             self::Punctuation => 'Zeichensetzung',
             self::GenderInclusiveLanguage => 'Gendern',
-            self::Style => 'Stil',
         };
     }
 
@@ -54,7 +55,6 @@ enum Category: string
             self::Grammar => 'Gramm.',
             self::Punctuation => 'Zeich.',
             self::GenderInclusiveLanguage => 'Gend.',
-            self::Style => 'Stil',
         };
     }
 

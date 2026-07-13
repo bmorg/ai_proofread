@@ -53,7 +53,6 @@ final class ExtensionSettings
      */
     private const DEFAULTS = [
         'baseUrl' => 'https://openrouter.ai/api/v1',
-        'enableStyle' => true,
         'enableGenderInclusiveLanguage' => true,
         'genderInclusiveStyle' => 'Doppelpunkt (z.B. Nutzer:innen)',
     ];

@@ -40,7 +40,7 @@ final class MockClient implements LlmClientInterface
             ];
         }
         $pageFindings = [[
-            'category' => (string)($allowed[count($allowed) - 1] ?? 'style'),
+            'category' => (string)($allowed[count($allowed) - 1] ?? 'spelling'),
             'observation' => 'Beispielhafter seitenweiter Hinweis (Mock-Backend): uneinheitliche Schreibweise.',
             'suggestion' => 'Eine Form durchgängig verwenden.',
         ]];

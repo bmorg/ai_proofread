@@ -32,7 +32,3 @@ enableGenderInclusiveLanguage = 1
 # cat=categories/general; type=string; label=Gender-inclusive default: The preferred style for gender-inclusive language. Shipped default: "Doppelpunkt (z.B. Nutzer:innen)" (another example: "generisches Maskulinum"). Cleared = no house style given to the model.
 # Default-on: mirrored as a runtime fallback in ExtensionSettings::DEFAULTS (keep in sync).
 genderInclusiveStyle = Doppelpunkt (z.B. Nutzer:innen)
-
-# cat=categories/general; type=boolean; label=Check style: Include optional stylistic suggestions (noisier).
-# Default-on: mirrored as a runtime fallback in ExtensionSettings::DEFAULTS (keep in sync).
-enableStyle = 1

@@ -610,15 +610,14 @@ final class ReviewModuleController
         $proofedAt = $proofed ? BackendUtility::datetime((int)$review['proofed_at']) : '';
         $proofedBy = $proofed ? $this->userName((int)$review['proofed_by'], true) : '';
 
-        // One column per category (abbreviated), except gender-inclusive language and
-        // style: by prompt design neither is a localized finding — gender-inclusive
-        // language is reported as a pageFinding, style goes to the free-text "other"
-        // bucket — so their columns would always be 0 (style is already reflected in
-        // the Sonstiges count). A run for which a category was disabled shows "–"
-        // (vs. "0" = checked, none).
+        // One column per category (abbreviated), except gender-inclusive language:
+        // by prompt design it is not a localized finding — it is reported as a
+        // pageFinding — so its column would always be 0. (Style is not a category at
+        // all; it lives in the free-text "other" bucket, reflected in Sonstiges.)
+        // A run for which a category was disabled shows "–" (vs. "0" = checked, none).
         $categories = array_values(array_filter(
             Category::ordered(),
-            static fn (Category $c): bool => $c !== Category::GenderInclusiveLanguage && $c !== Category::Style,
+            static fn (Category $c): bool => $c !== Category::GenderInclusiveLanguage,
         ));
 
         $rows = [];

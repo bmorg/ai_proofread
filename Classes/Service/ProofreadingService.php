@@ -282,13 +282,11 @@ final class ProofreadingService
      */
     public function enabledCategories(): array
     {
-        // Both default to on when unset — see ExtensionSettings::DEFAULTS.
-        $enableStyle = (bool)$this->config('enableStyle');
+        // Defaults to on when unset — see ExtensionSettings::DEFAULTS.
         $enableGenderInclusiveLanguage = (bool)$this->config('enableGenderInclusiveLanguage');
 
-        return array_values(array_filter(Category::ordered(), static function (Category $c) use ($enableStyle, $enableGenderInclusiveLanguage): bool {
+        return array_values(array_filter(Category::ordered(), static function (Category $c) use ($enableGenderInclusiveLanguage): bool {
             return match ($c) {
-                Category::Style => $enableStyle,
                 Category::GenderInclusiveLanguage => $enableGenderInclusiveLanguage,
                 default => true,
             };

@@ -74,7 +74,6 @@ And for the LLM prompt:
 |---------|-------|
 | `siteDescription` | For better context |
 | `extraPromptInstructions` | Allows adding of custom rules |
-| `enableStyle` | `1` |
 | `enableGenderInclusiveLanguage` | `1` |
 | `genderInclusiveStyle` | E.g. "Nutzer/innen" |
 
