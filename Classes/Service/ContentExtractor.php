@@ -25,6 +25,18 @@ final class ContentExtractor
      */
     private const EXCLUDED_CTYPES = ['html'];
 
+    /**
+     * How HTML entities are decoded when reducing markup to the plain text the
+     * model proofreads (see {@see htmlToText()}). This flag set + charset is a
+     * **contract the applier must mirror byte-for-byte**: {@see SuggestionApplier}
+     * decodes its text runs with exactly these so a model quote matches the text
+     * it was actually shown. Decode with a different entity set (`ENT_HTML401`)
+     * or charset there and matching silently misaligns — always reference these
+     * constants, never a second literal.
+     */
+    public const ENTITY_DECODE_FLAGS = ENT_QUOTES | ENT_HTML5;
+    public const ENTITY_CHARSET = 'UTF-8';
+
     public function __construct(
         private readonly ConnectionPool $connectionPool,
     ) {
@@ -101,7 +113,7 @@ final class ContentExtractor
         $text = str_replace("\r", '', $html);
         $text = preg_replace('/<br\s*\/?>/i', "\n", $text) ?? $text;
         $text = preg_replace('#</(p|li|h[1-6]|td|th|tr|div|blockquote|dt|dd|figcaption)>#i', "\n", $text) ?? $text;
-        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = html_entity_decode(strip_tags($text), self::ENTITY_DECODE_FLAGS, self::ENTITY_CHARSET);
         // Tidy inter-block whitespace: drop indentation around breaks, collapse
         // runs of blank lines to one blank line.
         $text = preg_replace('/[ \t]*\n[ \t]*/', "\n", $text) ?? $text;

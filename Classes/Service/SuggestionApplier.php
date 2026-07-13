@@ -22,14 +22,20 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * replace it. Two field kinds:
  *
  *  - `header`/`subheader` are plain text: an exact, unique substring match.
- *  - `bodytext` is RTE HTML: we parse it and match against the decoded text of a
- *    single text node (the same decoded text the model was given). The match must
- *    sit within ONE text node and be unique — a quote that spans element
- *    boundaries (e.g. includes `<strong>…</strong>`) is reported as SPANS_MARKUP
- *    and left to the deep-link, never spliced. Only CTypes whose bodytext is
- *    RTE-configured (`enableRichtext`) qualify at all: plain-text bodytext (core
- *    "table", "bullets") would be corrupted by the HTML round-trip, so it is
- *    reported as UNSUPPORTED and left to the deep-link.
+ *  - `bodytext` is RTE HTML: {@see locateInHtml()} splits it into raw **text runs**
+ *    (skipping tags/attributes/comments) and matches against each run's
+ *    `html_entity_decode`d text — the same decoding `ContentExtractor` fed the
+ *    model ({@see ContentExtractor::ENTITY_DECODE_FLAGS}). The match must sit
+ *    within ONE run and be unique — a quote that spans
+ *    element boundaries (e.g. includes `<strong>…</strong>`) is reported as
+ *    SPANS_MARKUP and left to the deep-link, never spliced. The write edits only
+ *    the matched run's raw span, so character entities elsewhere in the field
+ *    (`&quot;`, `&bdquo;`, `&nbsp;`, …) are preserved byte-for-byte — a
+ *    `DOMDocument::saveHTML()` reserialization would decode them all and churn
+ *    unrelated content + sys_history. Only CTypes whose bodytext is RTE-configured
+ *    (`enableRichtext`) qualify at all: plain-text bodytext (core "table",
+ *    "bullets") would be mangled if treated as HTML, so it is reported as
+ *    UNSUPPORTED and left to the deep-link.
  *
  * The write goes through DataHandler (run as the current BE user) so tt_content
  * edit permissions, RTE transformation, sys_history/undo and the refindex all
@@ -148,7 +154,7 @@ final class SuggestionApplier
 
         foreach (['header', 'subheader'] as $field) {
             $value = (string)($row[$field] ?? '');
-            $count = $value !== '' ? substr_count($value, $quote) : 0;
+            $count = $value !== '' ? $this->countOccurrences($value, $quote) : 0;
             if ($count === 1) {
                 $candidates[] = [
                     'field' => $field,
@@ -207,82 +213,220 @@ final class SuggestionApplier
     }
 
     /**
-     * Locate the quote inside RTE HTML, confined to a single text node.
+     * Locate the quote inside RTE HTML, confined to a single text run, and — when
+     * uniquely applyable — splice the suggestion straight into the raw HTML.
+     *
+     * **One parser.** The field is split into its raw **text runs** (`textRuns()`
+     * skips tags, attributes and comments) and each run is decoded with the
+     * *same* flags `ContentExtractor` used to build the text the model quoted
+     * ({@see ContentExtractor::ENTITY_DECODE_FLAGS}), so the match is
+     * apples-to-apples. The
+     * quote must occur exactly once across all runs AND not span markup (a match in
+     * the separator-less concatenation but not in any single run → SPANS_MARKUP).
+     * The write edits only the matched run's raw span, so every other byte — the
+     * character entities the rest of the field uses (`&quot;`, `&bdquo;`, `&nbsp;`,
+     * …) — is preserved verbatim; a `DOMDocument::saveHTML()` round-trip would
+     * decode them all and churn unrelated content + sys_history.
      *
      * @return array{count: int, spanContains: bool, newValue: ?string, before: string, after: string}
      */
     private function locateInHtml(string $html, string $quote, string $suggestion): array
     {
-        $none = ['count' => 0, 'spanContains' => false, 'newValue' => null, 'before' => '', 'after' => ''];
-
-        $dom = new \DOMDocument();
-        $previous = libxml_use_internal_errors(true);
-        // Wrap in a known root so NOIMPLIED/NODEFDTD give us clean inner HTML with
-        // no synthetic <html>/<body>/doctype; the XML hint forces UTF-8 decoding.
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="utf-8"?><div id="aiproofread-root">' . $html . '</div>',
-            LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded || $dom->documentElement === null) {
-            return $none;
-        }
-
-        $root = $dom->documentElement;
-        $xpath = new \DOMXPath($dom);
-        $textNodes = $xpath->query('.//text()', $root);
-        if ($textNodes === false) {
-            return $none;
-        }
-
         $totalCount = 0;
         $fullText = '';
-        $matchNode = null;
-        foreach ($textNodes as $node) {
-            $value = $node->nodeValue ?? '';
-            $fullText .= $value;
-            $occurrences = $value !== '' ? substr_count($value, $quote) : 0;
+        $hit = null;
+        $hitDecoded = '';
+        foreach ($this->textRuns($html) as $run) {
+            $decoded = html_entity_decode($run['text'], ContentExtractor::ENTITY_DECODE_FLAGS, ContentExtractor::ENTITY_CHARSET);
+            $fullText .= $decoded;
+            $occurrences = $this->countOccurrences($decoded, $quote);
             $totalCount += $occurrences;
             if ($occurrences === 1) {
-                $matchNode = $node;
+                $hit = $run;
+                $hitDecoded = $decoded;
             }
         }
 
-        // Occurrences in the concatenated element text — beyond the node-local
-        // ones this also finds occurrences spanning markup boundaries. More of
-        // these than node-local ones means the quote also exists spanning markup:
-        // applying to the node-local hit could then edit the wrong instance. (The
-        // separator-less concatenation can also fabricate matches across block
-        // boundaries; refusing those too errs on the safe side — the finding
-        // falls back to the deep-link.)
-        $fullTextCount = $fullText !== '' ? substr_count($fullText, $quote) : 0;
+        // Occurrences in the concatenated run text — beyond the run-local ones this
+        // also finds occurrences spanning markup boundaries. More of these than
+        // run-local ones means the quote also exists spanning markup: applying to
+        // the run-local hit could then edit the wrong instance. (The separator-less
+        // concatenation can also fabricate matches across block boundaries; refusing
+        // those too errs on the safe side — the finding falls back to the deep-link.)
+        $fullTextCount = $this->countOccurrences($fullText, $quote);
 
-        if ($totalCount === 1 && $fullTextCount <= 1 && $matchNode !== null) {
-            $value = $matchNode->nodeValue ?? '';
-            $before = $this->contextBefore($value, $quote);
-            $after = $this->contextAfter($value, $quote);
-            $matchNode->nodeValue = $this->replaceOnce($value, $quote, $suggestion);
+        if ($totalCount === 1 && $fullTextCount <= 1 && $hit !== null) {
+            $decodedPos = (int)strpos($hitDecoded, $quote);
+            $rawStart = $this->rawOffsetForDecodedLength($hit['text'], $decodedPos);
+            $rawEnd = $this->rawOffsetForDecodedLength($hit['text'], $decodedPos + \strlen($quote));
 
-            $out = '';
-            foreach (iterator_to_array($root->childNodes) as $child) {
-                $out .= $dom->saveHTML($child);
-            }
-            return ['count' => 1, 'spanContains' => false, 'newValue' => $out, 'before' => $before, 'after' => $after];
+            // The suggestion is inserted as text, never markup: encode &, <, > so a
+            // model (or tampered report) can't inject tags. Quotes stay literal —
+            // valid in text content and a minimal, unsurprising edit.
+            $newRun = substr($hit['text'], 0, $rawStart)
+                . htmlspecialchars($suggestion, ENT_NOQUOTES, 'UTF-8')
+                . substr($hit['text'], $rawEnd);
+            $newValue = substr($html, 0, $hit['offset'])
+                . $newRun
+                . substr($html, $hit['offset'] + \strlen($hit['text']));
+
+            return [
+                'count' => 1,
+                'spanContains' => false,
+                'newValue' => $newValue,
+                'before' => $this->contextBefore($hitDecoded, $quote),
+                'after' => $this->contextAfter($hitDecoded, $quote),
+            ];
         }
 
         if ($totalCount > 1 || $fullTextCount > 1) {
             return ['count' => max($totalCount, $fullTextCount), 'spanContains' => false, 'newValue' => null, 'before' => '', 'after' => ''];
         }
 
-        // Not within any single text node: does it appear only across boundaries?
+        // Not within any single text run: does it appear only across boundaries?
         return ['count' => 0, 'spanContains' => $fullTextCount > 0, 'newValue' => null, 'before' => '', 'after' => ''];
     }
 
     /**
+     * Count occurrences of $needle in $haystack **including overlapping ones**
+     * (`substr_count` counts only non-overlapping, so it undercounts a quote that
+     * overlaps itself — e.g. "e Straße" in "…Straße Straße…"). We must catch those
+     * as duplicates so an overlapping quote is reported AMBIGUOUS, never applied to
+     * an arbitrary occurrence. Used for every uniqueness check in the matcher.
+     */
+    private function countOccurrences(string $haystack, string $needle): int
+    {
+        if ($needle === '') {
+            return 0;
+        }
+        $count = 0;
+        $offset = 0;
+        while (($pos = strpos($haystack, $needle, $offset)) !== false) {
+            $count++;
+            $offset = $pos + 1; // +1 (not +strlen) so overlapping matches are counted
+        }
+
+        return $count;
+    }
+
+    /**
+     * Split raw HTML into its text runs — the spans between tags — each with its
+     * byte offset in the source. Markup (tags, comments, declarations/PIs) is
+     * skipped in full, quoted attribute values included, so a splice can never land
+     * inside a tag or an attribute value.
+     *
+     * @return list<array{offset: int, text: string}>
+     */
+    private function textRuns(string $html): array
+    {
+        $runs = [];
+        $i = 0;
+        $n = \strlen($html);
+        $runStart = 0;
+        while ($i < $n) {
+            if ($html[$i] === '<') {
+                if ($i > $runStart) {
+                    $runs[] = ['offset' => $runStart, 'text' => substr($html, $runStart, $i - $runStart)];
+                }
+                $i = $this->markupEnd($html, $i);
+                $runStart = $i;
+                continue;
+            }
+            $i++;
+        }
+        if ($n > $runStart) {
+            $runs[] = ['offset' => $runStart, 'text' => substr($html, $runStart)];
+        }
+
+        return $runs;
+    }
+
+    /**
+     * The byte offset just past the markup construct starting at $start (a '<'):
+     * a comment (`<!-- … -->`), a declaration or PI (`<! … >` / `<? … >`), or a
+     * regular tag whose `>` is found while respecting quoted attribute values.
+     */
+    private function markupEnd(string $html, int $start): int
+    {
+        $n = \strlen($html);
+        if (substr($html, $start, 4) === '<!--') {
+            $close = strpos($html, '-->', $start + 4);
+            return $close === false ? $n : $close + 3;
+        }
+        if ($start + 1 < $n && ($html[$start + 1] === '!' || $html[$start + 1] === '?')) {
+            $close = strpos($html, '>', $start + 2);
+            return $close === false ? $n : $close + 1;
+        }
+        $i = $start + 1;
+        $quote = '';
+        while ($i < $n) {
+            $ch = $html[$i];
+            if ($quote !== '') {
+                if ($ch === $quote) {
+                    $quote = '';
+                }
+            } elseif ($ch === '"' || $ch === "'") {
+                $quote = $ch;
+            } elseif ($ch === '>') {
+                return $i + 1;
+            }
+            $i++;
+        }
+
+        return $n;
+    }
+
+    /**
+     * The byte offset in a raw text run at which the decoded content first reaches
+     * $targetBytes bytes, stepping over character entities (which are longer raw
+     * than decoded). Translates a decoded match position into a raw offset.
+     *
+     * This MUST decode exactly the same tokens as the whole-run `html_entity_decode`
+     * that produced the match position (same {@see ContentExtractor::ENTITY_DECODE_FLAGS}),
+     * or the two disagree and the offset is wrong. So we recognise an entity only by
+     * its well-formed shape (`&name;` / `&#123;` / `&#xAB;`) — the same set PHP
+     * decodes — and confirm with `html_entity_decode`;
+     * there is deliberately no length cap (a rare long entity such as
+     * `&CounterClockwiseContourIntegral;` must still map). A bare `&` that is not a
+     * well-formed entity token is treated as one literal byte, exactly as the
+     * whole-run decode leaves it.
+     *
+     * Assumes an entity's decoded output is not split by a quote boundary — true for
+     * the single-codepoint entities RTE emits. A multi-codepoint entity (e.g.
+     * `&fjlig;` → "fj") with the quote starting between its codepoints would snap to
+     * the entity edge; not reachable with real RTE content.
+     */
+    private function rawOffsetForDecodedLength(string $raw, int $targetBytes): int
+    {
+        if ($targetBytes <= 0) {
+            return 0;
+        }
+        $ri = 0;
+        $decoded = 0;
+        $n = \strlen($raw);
+        while ($ri < $n && $decoded < $targetBytes) {
+            if (
+                $raw[$ri] === '&'
+                && preg_match('/&(?:#[xX][0-9a-fA-F]+|#[0-9]+|[a-zA-Z][a-zA-Z0-9]*);/A', $raw, $m, 0, $ri)
+            ) {
+                $piece = html_entity_decode($m[0], ContentExtractor::ENTITY_DECODE_FLAGS, ContentExtractor::ENTITY_CHARSET);
+                if ($piece !== $m[0]) {
+                    $decoded += \strlen($piece);
+                    $ri += \strlen($m[0]);
+                    continue;
+                }
+            }
+            $decoded++;
+            $ri++;
+        }
+
+        return $ri;
+    }
+
+    /**
      * Whether this CType's bodytext is an RTE (richtext) field. Only then is the
-     * parse-and-reserialize write in locateInHtml() safe: plain-text bodytext
-     * (core: "table", "bullets") must never be round-tripped through DOMDocument.
+     * splice write in locateInHtml() attempted: plain-text bodytext (core: "table",
+     * "bullets") must never be treated as HTML.
      */
     private function bodytextIsRichtext(string $cType): bool
     {

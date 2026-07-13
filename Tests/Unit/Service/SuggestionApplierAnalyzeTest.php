@@ -232,6 +232,68 @@ final class SuggestionApplierAnalyzeTest extends UnitTestCase
     }
 
     /**
+     * THE entity-preservation regression: applying an edit must touch only the
+     * matched span, never decode character entities elsewhere in the field. The
+     * old DOMDocument reserialization turned every &quot; → ", &bdquo;/&ldquo; →
+     * „/“ across the WHOLE bodytext, producing large unrelated diffs in stored
+     * content and sys_history. The splice write leaves untouched bytes verbatim.
+     */
+    public function testCharacterEntitiesElsewhereInBodytextArePreservedOnApply(): void
+    {
+        $row = $this->textElement([
+            'bodytext' => '<p>&quot;Psychologischer Psychotherapeut&quot;, &quot;Facharzt&quot; '
+                . 'und Leistungen sind &bdquo;erstattungsf&auml;hig&ldquo;.</p>',
+        ]);
+
+        $result = $this->applier->analyze($row, 'Facharzt', 'Facharzt für Psychiatrie');
+
+        self::assertSame(SuggestionApplier::APPLIED, $result['status']);
+        self::assertSame('bodytext', $result['field']);
+        self::assertSame(
+            '<p>&quot;Psychologischer Psychotherapeut&quot;, &quot;Facharzt für Psychiatrie&quot; '
+                . 'und Leistungen sind &bdquo;erstattungsf&auml;hig&ldquo;.</p>',
+            $result['newValue']
+        );
+    }
+
+    public function testQuoteSpanningACharacterEntityIsAppliedThroughIt(): void
+    {
+        // The quote's decoded "ä" sits on a &auml; entity in the source; the raw
+        // offset mapping must step over the whole 6-byte entity.
+        $row = $this->textElement(['bodytext' => '<p>Die Kosten sind erstattungsf&auml;hig heute.</p>']);
+
+        $result = $this->applier->analyze($row, 'erstattungsfähig', 'erstattungsfaehig');
+
+        self::assertSame(SuggestionApplier::APPLIED, $result['status']);
+        self::assertSame('<p>Die Kosten sind erstattungsfaehig heute.</p>', $result['newValue']);
+    }
+
+    public function testQuoteWithTypographicQuotesReplacesTheEntityEncodedSpan(): void
+    {
+        // The model is fed decoded text, so its quote carries literal „…“ even
+        // though the source stores &bdquo;/&ldquo;. The span is still located and
+        // replaced; entities OUTSIDE the span (there are none here) would remain.
+        $row = $this->textElement(['bodytext' => '<p>Er nannte es &bdquo;wichtig&ldquo; gestern.</p>']);
+
+        $result = $this->applier->analyze($row, '„wichtig“', '„zentral“');
+
+        self::assertSame(SuggestionApplier::APPLIED, $result['status']);
+        self::assertSame('<p>Er nannte es „zentral“ gestern.</p>', $result['newValue']);
+    }
+
+    public function testAttributeValueOfTheSameTextIsNotTouched(): void
+    {
+        // The splice operates on text runs only, so a tag/attribute carrying the
+        // same string as the quote is never edited (nor mistaken for the target).
+        $row = $this->textElement(['bodytext' => '<p><a title="Der Facharzt">Der Facharzt</a> ist da.</p>']);
+
+        $result = $this->applier->analyze($row, 'Der Facharzt', 'Der Kollege');
+
+        self::assertSame(SuggestionApplier::APPLIED, $result['status']);
+        self::assertSame('<p><a title="Der Facharzt">Der Kollege</a> ist da.</p>', $result['newValue']);
+    }
+
+    /**
      * THE corruption regression: non-RTE bodytext ("table") must never be
      * round-tripped through the HTML parser ("a & b" would come back as
      * "a &amp; b"). The status is UNSUPPORTED and no replacement is computed.
@@ -288,6 +350,88 @@ final class SuggestionApplierAnalyzeTest extends UnitTestCase
         ]);
 
         $result = $this->applier->analyze($row, 'Der Preis', 'Die Preise');
+
+        self::assertSame(SuggestionApplier::AMBIGUOUS, $result['status']);
+        self::assertSame('', $result['newValue']);
+    }
+
+    /**
+     * @dataProvider entityAndMarkupEdgeCases
+     */
+    public function testEntityAndMarkupEdgeCasesSpliceCleanly(string $bodytext, string $quote, string $suggestion, string $expected): void
+    {
+        $result = $this->applier->analyze($this->textElement(['bodytext' => $bodytext]), $quote, $suggestion);
+
+        self::assertSame(SuggestionApplier::APPLIED, $result['status']);
+        self::assertSame('bodytext', $result['field']);
+        self::assertSame($expected, $result['newValue']);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string, 2: string, 3: string}>
+     */
+    public static function entityAndMarkupEdgeCases(): array
+    {
+        return [
+            // A "greater-than" inside a quoted attribute value must not be mistaken
+            // for the end of the tag — the splice may never touch attributes.
+            'attribute value contains > (double-quoted)' => [
+                '<p><a title="a > b">Fehlar</a> ok</p>', 'Fehlar', 'Fehler', '<p><a title="a > b">Fehler</a> ok</p>',
+            ],
+            'attribute value contains > (single-quoted)' => [
+                "<p><a title='x > y'>Fehlar</a></p>", 'Fehlar', 'Fehler', "<p><a title='x > y'>Fehler</a></p>",
+            ],
+            'attribute value contains <' => [
+                '<p><a title="a<b">Fehlar</a></p>', 'Fehlar', 'Fehler', '<p><a title="a<b">Fehler</a></p>',
+            ],
+            'HTML comment containing > is preserved' => [
+                '<p>Vor <!-- a > b --> Fehlar</p>', 'Fehlar', 'Fehler', '<p>Vor <!-- a > b --> Fehler</p>',
+            ],
+            'inter-block newline is preserved' => [
+                "<p>eins</p>\n<p>Fehlar</p>", 'Fehlar', 'Fehler', "<p>eins</p>\n<p>Fehler</p>",
+            ],
+            'edit inside nested inline markup' => [
+                '<p><strong><em>Fehlar</em></strong> ok</p>', 'Fehlar', 'Fehler', '<p><strong><em>Fehler</em></strong> ok</p>',
+            ],
+            'hex numeric entity elsewhere is preserved' => [
+                '<p>Gr&#xFC;n und Fehlar</p>', 'Fehlar', 'Fehler', '<p>Gr&#xFC;n und Fehler</p>',
+            ],
+            'decimal numeric entity elsewhere is preserved' => [
+                '<p>Gr&#252;n und Fehlar</p>', 'Fehlar', 'Fehler', '<p>Gr&#252;n und Fehler</p>',
+            ],
+            'quote whose char is a hex entity in the source' => [
+                '<p>Die gr&#xFC;ne Wand</p>', 'grüne', 'blaue', '<p>Die blaue Wand</p>',
+            ],
+            'mdash and euro entities are preserved' => [
+                '<p>Preis&mdash;10&euro; und Fehlar</p>', 'Fehlar', 'Fehler', '<p>Preis&mdash;10&euro; und Fehler</p>',
+            ],
+            'non-breaking space entity is preserved' => [
+                '<p>Preis:&nbsp;10 und Fehlar</p>', 'Fehlar', 'Fehler', '<p>Preis:&nbsp;10 und Fehler</p>',
+            ],
+            'suggestion equal to quote is idempotent' => [
+                '<p>Ein Fehler hier</p>', 'Fehler', 'Fehler', '<p>Ein Fehler hier</p>',
+            ],
+            'empty suggestion deletes the quote' => [
+                '<p>aXYb</p>', 'XY', '', '<p>ab</p>',
+            ],
+            'ampersand in the suggestion is encoded' => [
+                '<p>Firma AA hier</p>', 'AA', 'R&D', '<p>Firma R&amp;D hier</p>',
+            ],
+            'single-character unique quote' => [
+                '<p>Preis 5 Euro</p>', '5', '6', '<p>Preis 6 Euro</p>',
+            ],
+        ];
+    }
+
+    public function testSelfOverlappingQuoteIsAmbiguousNotAppliedToTheFirstMatch(): void
+    {
+        // "e Straße" occurs twice, overlapping on the shared "e", in this text.
+        // substr_count counts only non-overlapping matches (it would report 1) —
+        // the matcher must count overlapping ones too, so this is AMBIGUOUS and
+        // never spliced at an arbitrary occurrence. (Found by the fuzz suite.)
+        $row = $this->textElement(['bodytext' => '<p>die Straße Straße schön</p>']);
+
+        $result = $this->applier->analyze($row, 'e Straße', 'e Gasse');
 
         self::assertSame(SuggestionApplier::AMBIGUOUS, $result['status']);
         self::assertSame('', $result['newValue']);
