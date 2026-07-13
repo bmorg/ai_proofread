@@ -84,6 +84,17 @@ final class AddProofreadButton
             return null;
         }
 
+        // Don't render the button for a user who can't reach the module: the
+        // button links to web_aiproofread, and without module access TYPO3 core
+        // answers that route with "Access Error: You don't have access to this
+        // module." This is the same check core uses to gate the route, so the
+        // button's visibility stays in sync with actual access (admins pass;
+        // a non-admin passes only if their group grants the module).
+        $beUser = $GLOBALS['BE_USER'] ?? null;
+        if ($beUser === null || !$beUser->check('modules', 'web_aiproofread')) {
+            return null;
+        }
+
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
 
