@@ -4,12 +4,6 @@ requestTimeout = 0
 # cat=backend/general; type=int+; label=Max concurrency: How many LLM calls to run in parallel. (Note that every content element causes an additional call per page.) 0 = automatic (4). Higher is faster but more likely to hit provider rate limits.
 maxConcurrency = 0
 
-# cat=backend/general; type=string; label=Site description: A short noun phrase describing the site, given to the model as context. E.g. "ein Bäckerei-Verzeichnis" or "ein Online-Shop für Fahrräder". Leave empty for a generic website.
-siteDescription =
-
-# cat=backend/general; type=string; label=Extra prompt instructions / site-specific rules: Appended to the system prompt for per-site or per-endpoint tuning. E.g. "Korrigiere NIE Anführungszeichen."
-extraPromptInstructions =
-
 # cat=backend/general; type=boolean; label=Use mock backend (testing): Return a fake report without calling any API (no key, no cost).
 useMock = 0
 
@@ -19,16 +13,3 @@ baseUrl = https://openrouter.ai/api/v1
 
 # cat=provider/general; type=string; label=API key: The API key.
 apiKey =
-
-# The model and its coupled params (model id, reasoning, max tokens, structured
-# output mode, provider routing) are no longer configured here: they live in the
-# shipped presets (Bmorg\AiProofread\Enum\ModelPreset) and are switched site-wide
-# from the admin-only "Einstellungen" view in the KI-Lektorat module.
-
-# cat=categories/general; type=boolean; label=Check the text for gender-inclusive language ("Gendern") as a category.
-# Default-on: mirrored as a runtime fallback in ExtensionSettings::DEFAULTS (keep in sync).
-enableGenderInclusiveLanguage = 1
-
-# cat=categories/general; type=string; label=Gender-inclusive default: The preferred style for gender-inclusive language. Shipped default: "Doppelpunkt (z.B. Nutzer:innen)" (another example: "generisches Maskulinum"). Cleared = no house style given to the model.
-# Default-on: mirrored as a runtime fallback in ExtensionSettings::DEFAULTS (keep in sync).
-genderInclusiveStyle = Doppelpunkt (z.B. Nutzer:innen)

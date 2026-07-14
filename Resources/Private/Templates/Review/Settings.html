@@ -24,74 +24,158 @@
 .aiproofread-custom .form-check { padding: 0; margin-top: .8rem; }
 .aiproofread-custom .form-check label { font-weight: normal; display: inline; cursor: pointer; padding: 0; }
 .aiproofread-custom .field-hint { color: #6c757d; font-size: .82em; margin: .6rem 0 0; max-width: 40rem; }
+
+/* Prompt/content settings section — same field look as the custom-config block. */
+.aiproofread-prompt { max-width: 48rem; margin-bottom: 1.2rem; }
+.aiproofread-prompt .form-row { margin-bottom: 1.4rem; }
+.aiproofread-prompt .form-row > label { display: block; font-weight: 600; margin-bottom: .15rem; padding: 0 0 .2rem; }
+.aiproofread-prompt input[type=text], .aiproofread-prompt textarea { width: 100%; max-width: 32rem; }
+.aiproofread-prompt textarea { font-family: inherit; }
+.aiproofread-prompt .form-check { padding: 0; margin: .3rem 0 .6rem; }
+.aiproofread-prompt .form-check label { font-weight: normal; display: inline; cursor: pointer; padding: 0; }
+.aiproofread-prompt .field-hint { color: #6c757d; font-size: .82em; margin: .4rem 0 0; max-width: 40rem; }
+
+/* CSS-only tabs (same hidden-radio pattern as the Statistik view; no JS): the
+   radios carry the state, the labels are the tab bar, :checked ~ shows the panel.
+   Radios stay focusable (clip, not display:none) so keyboard switching works. */
+.aiproofread-tabs > input[type="radio"] {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+}
+.aiproofread-tabbar { display: flex; gap: .25rem; border-bottom: 1px solid #d0d0d0; margin: 1rem 0 0; }
+.aiproofread-tabbar label {
+    padding: .45rem 1.1rem; cursor: pointer; color: #6c757d;
+    border: 1px solid transparent; border-radius: 3px 3px 0 0; margin-bottom: -1px;
+}
+#aiproofread-tab-model:checked ~ .aiproofread-tabbar label[for="aiproofread-tab-model"],
+#aiproofread-tab-prompt:checked ~ .aiproofread-tabbar label[for="aiproofread-tab-prompt"] {
+    border-color: #d0d0d0 #d0d0d0 #fff; background: #fff; color: #212529; font-weight: 600;
+}
+#aiproofread-tab-model:focus-visible ~ .aiproofread-tabbar label[for="aiproofread-tab-model"],
+#aiproofread-tab-prompt:focus-visible ~ .aiproofread-tabbar label[for="aiproofread-tab-prompt"] {
+    outline: 2px solid #0a7ea4; outline-offset: -2px;
+}
+.aiproofread-tabpanel { display: none; padding-top: 1rem; }
+#aiproofread-tab-model:checked ~ .aiproofread-tabpanel-model,
+#aiproofread-tab-prompt:checked ~ .aiproofread-tabpanel-prompt { display: block; }
 </style>
 
 <h1>KI-Lektorat — Einstellungen</h1>
 
 <p>
-    Auswahl des verwendeten KI-Modells. Das gewählte Modell gilt <strong>für die gesamte Installation</strong>
-    (alle Durchläufe aller Redakteur:innen). Beeinflusst die Qualität der Ergebnisse und die verbundenen Kosten.
+    Installationsweite Einstellungen — sie gelten für <strong>alle Durchläufe aller Redakteur:innen</strong>.
 </p>
 
 <form method="post" action="{formUrl}">
-    <h2>Aktives Modell</h2>
-    <ul class="aiproofread-presets">
-        <f:for each="{presets}" as="preset">
-            <li class="aiproofread-preset{f:if(condition: preset.active, then: ' is-active')}">
-                <label>
-                    <input type="radio" name="preset" value="{preset.key}"<f:if condition="{preset.active}"> checked="checked"</f:if> />
-                    <span class="aiproofread-preset-body">
-                        <span class="aiproofread-preset-head">
-                            <span>{preset.label}</span>
-                            <f:if condition="{preset.active}"><span class="badge bg-success">aktiv</span></f:if>
-                        </span>
-                        <span class="aiproofread-preset-meta">
-                            <f:if condition="{preset.details.model}"><span class="aiproofread-model">{preset.details.model}</span></f:if>
-                            <f:for each="{preset.details.chips}" as="chip"><span class="aiproofread-chip">{chip}</span></f:for>
-                        </span>
-                    </span>
-                </label>
+    <div class="aiproofread-tabs">
+        <input type="radio" name="aiproofread-tab" id="aiproofread-tab-model" checked="checked" />
+        <input type="radio" name="aiproofread-tab" id="aiproofread-tab-prompt" />
+        <nav class="aiproofread-tabbar">
+            <label for="aiproofread-tab-model">KI-Modell</label>
+            <label for="aiproofread-tab-prompt">Prompt</label>
+        </nav>
 
-                <f:if condition="{preset.key} == 'custom'">
-                    <div class="aiproofread-custom">
-                        <div class="form-row">
-                            <label for="customModel">Modell (OpenRouter-Slug)</label>
-                            <input type="text" id="customModel" name="customModel" value="{custom.model}" />
-                            <div class="form-check">
-                                <label>
-                                    <input type="checkbox" name="customReasoning" value="1"<f:if condition="{custom.reasoning}"> checked="checked"</f:if> />
-                                    Reasoning anfordern
-                                </label>
+        <section class="aiproofread-tabpanel aiproofread-tabpanel-model">
+            <p>
+                Auswahl des verwendeten KI-Modells. Beeinflusst die Qualität der Ergebnisse und die verbundenen Kosten.
+            </p>
+            <ul class="aiproofread-presets">
+                <f:for each="{presets}" as="preset">
+                    <li class="aiproofread-preset{f:if(condition: preset.active, then: ' is-active')}">
+                        <label>
+                            <input type="radio" name="preset" value="{preset.key}"<f:if condition="{preset.active}"> checked="checked"</f:if> />
+                            <span class="aiproofread-preset-body">
+                                <span class="aiproofread-preset-head">
+                                    <span>{preset.label}</span>
+                                    <f:if condition="{preset.active}"><span class="badge bg-success">aktiv</span></f:if>
+                                </span>
+                                <span class="aiproofread-preset-meta">
+                                    <f:if condition="{preset.details.model}"><span class="aiproofread-model">{preset.details.model}</span></f:if>
+                                    <f:for each="{preset.details.chips}" as="chip"><span class="aiproofread-chip">{chip}</span></f:for>
+                                </span>
+                            </span>
+                        </label>
+
+                        <f:if condition="{preset.key} == 'custom'">
+                            <div class="aiproofread-custom">
+                                <div class="form-row">
+                                    <label for="customModel">Modell (OpenRouter-Slug)</label>
+                                    <input type="text" id="customModel" name="customModel" value="{custom.model}" />
+                                    <div class="form-check">
+                                        <label>
+                                            <input type="checkbox" name="customReasoning" value="1"<f:if condition="{custom.reasoning}"> checked="checked"</f:if> />
+                                            Reasoning anfordern
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <label for="customMaxTokens">Max. Tokens (0 = automatisch)</label>
+                                    <input type="number" id="customMaxTokens" name="customMaxTokens" min="0" value="{custom.maxTokens}" />
+                                </div>
+                                <div class="form-row">
+                                    <label for="customStructuredOutput">Structured Output</label>
+                                    <select id="customStructuredOutput" name="customStructuredOutput">
+                                        <f:for each="{structuredOutputOptions}" as="option">
+                                            <option value="{option.value}"<f:if condition="{option.selected}"> selected="selected"</f:if>>{option.label}</option>
+                                        </f:for>
+                                    </select>
+                                    <p class="field-hint">
+                                        Art des angefragten Modell-Outputs.<br>
+                                        <strong>JSON-Schema</strong> erzwingt die exakte Antwortstruktur (empfohlen).<br>
+                                        <strong>JSON-Objekt</strong> garantiert nur gültiges JSON; die Struktur ergibt sich aus dem Prompt.<br>
+                                        <strong>Nur Prompt</strong> bietet keine Output-Garantieren. Für Modelle,
+                                        welche <code>response_format</code> nicht unterstützen.
+                                    </p>
+                                </div>
+                                <div class="form-row">
+                                    <label for="customPinProvider">Spezifischen Provider wählen (leer = Standard-Routing)</label>
+                                    <input type="text" id="customPinProvider" name="customPinProvider" value="{custom.pinProvider}" />
+                                </div>
                             </div>
-                        </div>
-                        <div class="form-row">
-                            <label for="customMaxTokens">Max. Tokens (0 = automatisch)</label>
-                            <input type="number" id="customMaxTokens" name="customMaxTokens" min="0" value="{custom.maxTokens}" />
-                        </div>
-                        <div class="form-row">
-                            <label for="customStructuredOutput">Structured Output</label>
-                            <select id="customStructuredOutput" name="customStructuredOutput">
-                                <f:for each="{structuredOutputOptions}" as="option">
-                                    <option value="{option.value}"<f:if condition="{option.selected}"> selected="selected"</f:if>>{option.label}</option>
-                                </f:for>
-                            </select>
-                            <p class="field-hint">
-                                Art des angefragten Modell-Outputs.<br>
-                                <strong>JSON-Schema</strong> erzwingt die exakte Antwortstruktur (empfohlen).<br>
-                                <strong>JSON-Objekt</strong> garantiert nur gültiges JSON; die Struktur ergibt sich aus dem Prompt.<br>
-                                <strong>Nur Prompt</strong> bietet keine Output-Garantieren. Für Modelle,
-                                welche <code>response_format</code> nicht unterstützen.
-                            </p>
-                        </div>
-                        <div class="form-row">
-                            <label for="customPinProvider">Spezifischen Provider wählen (leer = Standard-Routing)</label>
-                            <input type="text" id="customPinProvider" name="customPinProvider" value="{custom.pinProvider}" />
-                        </div>
+                        </f:if>
+                    </li>
+                </f:for>
+            </ul>
+        </section>
+
+        <section class="aiproofread-tabpanel aiproofread-tabpanel-prompt">
+            <div class="aiproofread-prompt">
+                <div class="form-row">
+                    <label for="siteDescription">Website-Beschreibung</label>
+                    <input type="text" id="siteDescription" name="siteDescription" value="{prompt.siteDescription}" />
+                    <p class="field-hint">
+                        Kurze Beschreibung der Webseite - wird als Kontext an das Modell übergeben.<br>
+                        Z.B. „ein Bäckerei-Verzeichnis“ oder „ein Online-Shop für Fahrräder“.
+                        Leer = allgemeine Website ohne Domänenbezug.
+                    </p>
+                </div>
+                <div class="form-row">
+                    <label for="extraPromptInstructions">Seitenspezifische Prompt-Anweisungen</label>
+                    <textarea id="extraPromptInstructions" name="extraPromptInstructions" rows="4">{prompt.extraPromptInstructions}</textarea>
+                    <p class="field-hint">
+                        Werden an den System-Prompt angefügt. Absolute Fomulierungen („müssen“ statt „können“ etc.) führen bei einigen Modellen zu besseren Ergebnissen.<br>
+                        Z.B. „Korrigiere NIE Anführungszeichen.“
+                    </p>
+                </div>
+                <div class="form-row">
+                    <label>Gendergerechte Sprache</label>
+                    <div class="form-check">
+                        <label>
+                            <input type="checkbox" name="enableGenderInclusiveLanguage" value="1"<f:if condition="{prompt.enableGenderInclusiveLanguage}"> checked="checked"</f:if> />
+                            In Prüfung aufnehmen
+                        </label>
                     </div>
-                </f:if>
-            </li>
-        </f:for>
-    </ul>
+                    <label for="genderInclusiveStyle">Hausschreibweise</label>
+                    <input type="text" id="genderInclusiveStyle" name="genderInclusiveStyle" value="{prompt.genderInclusiveStyle}" />
+                    <p class="field-hint">
+                        Bevorzugter Stil für gendergerechte Sprache.<br>
+                        Bspw. „Doppelpunkt (z.B. Nutzer:innen)“ oder „generisches Maskulinum“.
+                        Leer = keine Hausschreibweise an das Modell.
+                    </p>
+                </div>
+            </div>
+        </section>
+    </div>
 
     <button type="submit" class="btn btn-primary">Speichern</button>
 </form>

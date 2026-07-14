@@ -68,16 +68,10 @@ Fill in at least the provider settings. Recommended:
 | `maxConcurrency` |                                                                                |
 | `useMock` | `0`                                                                                   |
 
-And for the LLM prompt:
 
-| Setting | Value |
-|---------|-------|
-| `siteDescription` | For better context |
-| `extraPromptInstructions` | Allows adding of custom rules |
-| `enableGenderInclusiveLanguage` | `1` |
-| `genderInclusiveStyle` | E.g. "Nutzer/innen" |
+### 2. Model configuration (KI-Lektorat → Dropdown: Einstellungen)
 
-### 2. Model selection (KI-Lektorat → Dropdown: Einstellungen)
+#### Model selection
 
 Ships with a set of preconfigured models.
 
@@ -92,9 +86,20 @@ a set of expected finds (+ false-positives).
 | **GPT 5.6 Luna** | finds most errors; few false positives; fast; cheap (0.2× Sol)          |
 
 Recommendations:
-- **Reasoning on** gives much better results (slower and more expensive).
-- **Pin a provider** (e.g. `anthropic`) if the default routing lands on providers that e.g. don't return the required JSON.
-  - When using `extraPromptInstructions` (see above), use strict language, e.g. "Korrigiere NIE Anführungszeichen". Permissive wording ("kann ignoriert werden") will get ignored by some models.
+  - **Reasoning on** gives much better results (slower and more expensive).
+  - **Pin a provider** (e.g. `anthropic`) if the default routing lands on providers that e.g. don't return the required JSON.
+
+#### Prompt config
+
+| Setting | Value |
+|---------|-------|
+| `siteDescription` | For better context |
+| `extraPromptInstructions` | Allows adding of custom rules |
+| `enableGenderInclusiveLanguage` | `1` |
+| `genderInclusiveStyle` | E.g. "Nutzer/innen" |
+
+Recommendations:
+  - When using `extraPromptInstructions`, use strict language, e.g. "Korrigiere NIE Anführungszeichen". Permissive wording ("kann ignoriert werden") will get ignored by some models.
 
 ## Development
 

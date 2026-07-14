@@ -10,6 +10,7 @@ use Bmorg\AiProofread\Service\ExtensionSettings;
 use Bmorg\AiProofread\Service\Llm\MockClient;
 use Bmorg\AiProofread\Service\LogRepository;
 use Bmorg\AiProofread\Service\ProofreadingService;
+use Bmorg\AiProofread\Service\PromptSettings;
 use Bmorg\AiProofread\Service\ReportRepository;
 use Bmorg\AiProofread\Service\ReviewRepository;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
@@ -28,23 +29,24 @@ use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 final class ProofreadingServicePromptTest extends UnitTestCase
 {
     /**
-     * @param array<string, mixed> $config ext-config values; keys absent here
-     *   behave like unset keys (ExtensionConfiguration throws, DEFAULTS apply)
+     * @param array<string, mixed> $prompt prompt/content settings under test; keys
+     *   absent here fall back to the shipped defaults in {@see PromptSettings}
      */
-    private function createService(array $config): ProofreadingService
+    private function createService(array $prompt): ProofreadingService
     {
+        // The prompt/content keys are authoritative in PromptSettings (registry), not
+        // ext config — nothing the prompt builder reads touches ext config, so it throws.
         $extensionConfiguration = $this->createMock(ExtensionConfiguration::class);
-        $extensionConfiguration->method('get')->willReturnCallback(
-            static function (string $extension, string $path = '') use ($config) {
-                if (\array_key_exists($path, $config)) {
-                    return $config[$path];
-                }
-                throw new \RuntimeException('not set: ' . $path, 1751500000);
-            }
+        $extensionConfiguration->method('get')->willThrowException(
+            new \RuntimeException('not set', 1751500000)
         );
 
+        // Registry: default preset + no custom values (null), and the prompt settings
+        // under test (PromptSettings fills any absent key from the shipped defaults).
         $registry = $this->createMock(Registry::class);
-        $registry->method('get')->willReturn(null); // default preset, no custom values
+        $registry->method('get')->willReturnCallback(
+            static fn (string $namespace, string $key): mixed => $key === 'promptSettings' ? $prompt : null
+        );
 
         $pool = $this->createMock(ConnectionPool::class);
 
@@ -54,7 +56,7 @@ final class ProofreadingServicePromptTest extends UnitTestCase
             new ReportRepository($pool),
             new MockClient(),
             new LogRepository($pool),
-            new ExtensionSettings($extensionConfiguration, new ActivePreset($registry)),
+            new ExtensionSettings($extensionConfiguration, new ActivePreset($registry), new PromptSettings($registry)),
         );
     }
 
@@ -95,9 +97,9 @@ final class ProofreadingServicePromptTest extends UnitTestCase
     }
 
     /**
-     * Unset keys fall back to ExtensionSettings::DEFAULTS: gender-inclusive
-     * language on, shipped gender style present. (Style is not a category —
-     * it never appears in the checklist; it lives in the free-text `other` bucket.)
+     * With nothing saved, PromptSettings supplies the shipped defaults: gender-inclusive
+     * language on, shipped gender style present. (Style is not a category — it never
+     * appears in the checklist; it lives in the free-text `other` bucket.)
      */
     public function testDefaultsApplyWhenNothingIsConfigured(): void
     {

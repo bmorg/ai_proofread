@@ -11,6 +11,7 @@ use Bmorg\AiProofread\Service\ActivePreset;
 use Bmorg\AiProofread\Service\FindingStateRepository;
 use Bmorg\AiProofread\Service\LogRepository;
 use Bmorg\AiProofread\Service\ProofreadingService;
+use Bmorg\AiProofread\Service\PromptSettings;
 use Bmorg\AiProofread\Service\QueueRepository;
 use Bmorg\AiProofread\Service\ReportRepository;
 use Bmorg\AiProofread\Service\ReviewRepository;
@@ -73,6 +74,7 @@ final class ReviewModuleController
         private readonly QueueRepository $queue,
         private readonly LogRepository $log,
         private readonly ActivePreset $activePreset,
+        private readonly PromptSettings $promptSettings,
         private readonly FlashMessageService $flashMessageService,
         private readonly SuggestionApplier $applier,
         private readonly FindingStateRepository $findingStates,
@@ -112,9 +114,11 @@ final class ReviewModuleController
             $canEdit = $GLOBALS['BE_USER']->doesUserHaveAccess($pageRecord, Permission::CONTENT_EDIT);
         }
 
-        // Save the site-wide model preset from the Einstellungen form (admins only
-        // — it changes the model, cost and latency for everyone's runs). POST, then
-        // redirect (PRG) back to the settings view.
+        // Save the site-wide Einstellungen form (admins only): the active model
+        // preset + custom values, and the prompt/content settings (site description,
+        // site-specific rules, gender policy) — one form, one save. It changes the
+        // model, cost and behaviour for everyone's runs. POST, then redirect (PRG)
+        // back to the settings view.
         if ($isAdmin && $request->getMethod() === 'POST') {
             $body = \is_array($request->getParsedBody()) ? $request->getParsedBody() : [];
             // Gate on the preset field: the Einstellungen form always submits it
@@ -137,12 +141,21 @@ final class ReviewModuleController
                 if ($candidate !== null) {
                     $this->activePreset->set($candidate);
                 }
+                // The prompt/content settings share this form (one Speichern); save them
+                // on every submit too. An unchecked checkbox is absent from the body, so
+                // isset() distinguishes "gendern off" from "field not submitted".
+                $this->promptSettings->save([
+                    'siteDescription' => $body['siteDescription'] ?? '',
+                    'extraPromptInstructions' => $body['extraPromptInstructions'] ?? '',
+                    'enableGenderInclusiveLanguage' => isset($body['enableGenderInclusiveLanguage']),
+                    'genderInclusiveStyle' => $body['genderInclusiveStyle'] ?? '',
+                ]);
                 // Confirm the save across the PRG redirect. storeInSession survives the
                 // redirect; the named storeInSession arg lets us skip the severity arg,
                 // whose type differs across v11 (int) / v13 (ContextualFeedbackSeverity)
                 // — so this stays version-neutral and defaults to OK.
                 $this->flashMessageService->getMessageQueueByIdentifier()->enqueue(
-                    new FlashMessage('Modell-Einstellungen gespeichert.', '', storeInSession: true)
+                    new FlashMessage('Einstellungen gespeichert.', '', storeInSession: true)
                 );
                 return new RedirectResponse(
                     (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'view' => self::VIEW_SETTINGS])
@@ -487,12 +500,17 @@ final class ReviewModuleController
             ];
         }
 
+        // Prompt/content settings: pre-fill from the effective values (saved, or the
+        // shipped defaults) so the form always shows what is live right now.
+        $prompt = $this->promptSettings->values();
+
         return $this->moduleResponse($moduleTemplate, $this->renderView('Review/Settings.html', [
             // The form posts back to this same view; UriBuilder adds the route token.
             'formUrl' => (string)$this->uriBuilder->buildUriFromRoute('web_aiproofread', ['id' => $pageUid, 'view' => self::VIEW_SETTINGS]),
             'presets' => $presets,
             'custom' => $custom,
             'structuredOutputOptions' => $structuredOutputOptions,
+            'prompt' => $prompt,
         ]));
     }
 

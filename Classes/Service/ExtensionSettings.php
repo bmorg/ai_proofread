@@ -24,56 +24,56 @@ final class ExtensionSettings
     private const EXTENSION_KEY = 'ai_proofread';
 
     /**
-     * Runtime fallbacks for keys whose default is NOT the type's zero value (here:
-     * categories that are on by default). ExtensionConfiguration::get() does not
-     * apply ext_conf_template.txt defaults at read time — they are persisted only on
-     * install-sync or when the admin saves the Extension Configuration form — so a
-     * key absent from the stored config throws a missing-key exception. Without a
-     * fallback that collapses to null → (bool) false and silently disables the
-     * category despite its template default of 1.
+     * Runtime fallback for an ext-config key whose default is NOT the type's zero
+     * value — currently just `baseUrl`. ExtensionConfiguration::get() does not apply
+     * ext_conf_template.txt defaults at read time (they are persisted only on
+     * install-sync or when the admin saves the Extension Configuration form), so a
+     * key absent from the stored config throws a missing-key exception; without this
+     * fallback `baseUrl` would collapse to null instead of its template default.
      *
-     * Scope — this fires only for the narrow "key absent from stored config" edge:
-     *   - the option was added to the template after the extension was already
-     *     configured, and no sync/save has run since (stored array lacks the key); or
-     *   - the extension is loaded but its config was never synced/saved at all.
-     * It does NOT affect a fresh, properly-installed instance (install-sync writes the
-     * template default, so get() returns that and never consults this), nor an install
-     * that already persisted the key — including a stored 0: an explicit "off" wins,
-     * because sync merges only missing keys and never overwrites an existing value. So
-     * this is a safety net for the missing-key edge, not the general default mechanism
-     * — the template is. A key whose template default IS the type's zero value (0, '',
-     * false) does not belong here: its inline `?? 0` / `?? ''` fallback already
-     * reproduces the template default, so there is nothing to mirror.
+     * Scope — fires only for the narrow "key absent from stored config" edge (the
+     * template gained the key after the extension was configured with no sync since,
+     * or the config was never synced at all). A fresh, synced install returns the
+     * persisted template default and never consults this; an explicit stored value
+     * (including a zero) wins, since sync merges only missing keys. A key whose
+     * template default IS the type's zero value needs no entry — the inline `?? 0` /
+     * `?? ''` reproduces it. Keep this in sync with ext_conf_template.txt.
      *
-     * Entries mirror the non-zero defaults in ext_conf_template.txt; keep the two in
-     * sync (the template drives the admin form + install-sync, this drives the runtime
-     * read of an absent key).
+     * (The prompt/content keys are not here — they are authoritative in
+     * {@see PromptSettings}, which carries their shipped defaults.)
      *
      * @var array<string, mixed>
      */
     private const DEFAULTS = [
         'baseUrl' => 'https://openrouter.ai/api/v1',
-        'enableGenderInclusiveLanguage' => true,
-        'genderInclusiveStyle' => 'Doppelpunkt (z.B. Nutzer:innen)',
     ];
 
     public function __construct(
         private readonly ExtensionConfiguration $extensionConfiguration,
         private readonly ActivePreset $activePreset,
+        private readonly PromptSettings $promptSettings,
     ) {
     }
 
     /**
-     * The configured value for $key: the active preset's value when it pins this
-     * key, otherwise the base ext-config value. A key that is unset/unreadable
-     * returns its {@see DEFAULTS} entry, or null when it has none (so callers can
-     * apply their own default).
+     * The configured value for $key, resolved through the overlay stack: the active
+     * model preset first (it pins the model-shaping keys), then the prompt/content
+     * settings admins manage in-module ({@see PromptSettings}), then the base ext
+     * config. A key that is unset/unreadable returns its {@see DEFAULTS} entry, or
+     * null when it has none (so callers can apply their own default).
      */
     public function get(string $key): mixed
     {
         $presetSettings = $this->activePreset->effectiveSettings();
         if (\array_key_exists($key, $presetSettings)) {
             return $presetSettings[$key];
+        }
+
+        // Prompt/content settings are authoritative for their four keys ({@see
+        // PromptSettings::DEFAULTS}), answered here without touching ext config.
+        $promptSettings = $this->promptSettings->values();
+        if (\array_key_exists($key, $promptSettings)) {
+            return $promptSettings[$key];
         }
 
         try {

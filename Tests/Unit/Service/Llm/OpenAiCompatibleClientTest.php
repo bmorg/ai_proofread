@@ -9,6 +9,7 @@ use Bmorg\AiProofread\Service\ExtensionSettings;
 use Bmorg\AiProofread\Service\Llm\HttpLlmCall;
 use Bmorg\AiProofread\Service\Llm\LlmException;
 use Bmorg\AiProofread\Service\Llm\OpenAiCompatibleClient;
+use Bmorg\AiProofread\Service\PromptSettings;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Http\Client\GuzzleClientFactory;
@@ -61,7 +62,7 @@ final class OpenAiCompatibleClientTest extends UnitTestCase
 
         return new OpenAiCompatibleClient(
             new GuzzleClientFactory(),
-            new ExtensionSettings($extensionConfiguration, new ActivePreset($registry))
+            new ExtensionSettings($extensionConfiguration, new ActivePreset($registry), new PromptSettings($registry))
         );
     }
 
