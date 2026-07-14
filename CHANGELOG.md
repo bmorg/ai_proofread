@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0] - 2026-07-14
+
+Features:
+ - Added cost overview to the statistics page.
+ - More accessible prompt settings, moved to the "Einstellungen" page.
+
+Changes:
+ - Updated shipped presets after some local testing (to be formalized).
+ - Removed the "check style" config option for now since it didn't have any effect.
+ - Hide docheader button when user lacks module access.
+
+Fixes:
+ - Preserve character entities on bodytext apply (e.g. the RTE's &quot; was silently rewritten to " when applying unrelated changes).
+
 ## [0.3.0] - 2026-07-07
 
 Features:
