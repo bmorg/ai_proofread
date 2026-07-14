@@ -158,3 +158,25 @@ This is a TYPO3 CMS extension. Frontend/UI language is **German**; code, comment
   - **Parallels/fuse caveat (this dev box):** `.Build` must live on the VM's native filesystem — it is a symlink to `/home/vagrant/.build-cache/ai_proofread`. On the `prl_fsd` shared folder, `realpath()` inside the functional-test instance drops the `/projects` mount prefix and the instance's core symlinks break. If `.Build` is ever recreated as a plain directory, functional tests fail with `symlink(): No such file or directory` / "typo3/sysext/*/ does not exist" — restore the symlink. Because `.Build` is a symlink, the extension is linked into the test web dir with an **absolute** target by `Build/Scripts/ExtensionTestLink.php` (composer `post-autoload-dump`; cwd-independent, paths derived from composer config) — a relative link resolves against the link's real parent chain, points into the build cache, and sends the classic-mode classmap scan through core+vendor via a symlink cycle (20+ min boot, no error).
   - Testability seams are marked `@internal`: `SuggestionApplier::analyze()`, `ProofreadingService::buildSystemPrompt()`/`buildSchema()`, `OpenAiCompatibleClient::buildCall()`/`parseResponse()`, `AddProofreadButton::decorationFor()` are public **only** for unit tests. Final services are never mocked — tests build the real object graph on mocked core deps (`ConnectionPool`, `Registry`, `ExtensionConfiguration`).
   - Live-instance checks remain for what the harness can't reach: module chrome on v12/13, backend CSP vs. the inline script, real OpenRouter routing, CKEditor serialization.
+
+### Setting up `.Build` for a checkout (this Parallels box)
+
+`.Build/` is gitignored — each working copy builds its own. On this box every checkout lives on the `prl_fsd` shared mount (`/projects/…`), so its `.Build` **must be a symlink to a VM-native (`ext4`) directory** (`/home/vagrant/.build-cache/…`), never a plain dir on `/projects` — see the Parallels/fuse caveat above for why. **Each checkout needs its own, distinct cache dir:** `ExtensionTestLink` (composer `post-autoload-dump`) links `.Build/public/typo3conf/ext/ai_proofread` back to *that* checkout's root, so two checkouts pointing at one cache would clobber each other's extension link on every `composer install`.
+
+Current checkouts (one unique cache dir each; the review copy's is the historical `ai_proofread`, not named after its dir):
+
+| Checkout | `.Build` symlink target |
+|----------|-------------------------|
+| `/projects/ai-proof-reader-review` | `/home/vagrant/.build-cache/ai_proofread` |
+| `/projects/ai-proof-reader` | `/home/vagrant/.build-cache/ai-proof-reader` |
+
+To set one up — from scratch, or to add another checkout `<name>` at `<path>`:
+
+```bash
+mkdir -p /home/vagrant/.build-cache/<name>          # unique per checkout
+ln -s /home/vagrant/.build-cache/<name> <path>/.Build
+cd <path> && composer install                       # from the checkout ROOT only — never a subdir
+composer test                                        # verify (unit + functional)
+```
+
+`composer install`'s `post-autoload-dump` plants the absolute extension link; `ExtensionTestLink` throws rather than link if it wasn't run from the extension root, so a wrong-directory invocation fails loudly instead of planting a bad link. Off the Parallels box (a native FS), the symlink is unnecessary — `.Build` may be a plain directory that `composer install` creates.
