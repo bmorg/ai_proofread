@@ -13,6 +13,7 @@ Changes:
 
 Fixes:
  - Preserve character entities on bodytext apply (e.g. the RTE's &quot; was silently rewritten to " when applying unrelated changes).
+ - Better provider error detection for API calls.
 
 ## [0.3.0] - 2026-07-07
 

@@ -141,6 +141,27 @@ final class OpenAiCompatibleClient extends AbstractHttpLlmClient
             throw new LlmException('Fehler des OpenAI-kompatiblen Endpunkts: ' . $message, $body, $rawBody, 1718700213);
         }
 
+        // A per-choice provider failure: unlike the top-level `error` above (whole
+        // request rejected), OpenRouter reports a mid-generation error on the choice
+        // itself — choices[0].error with finish_reason "error" and content null (e.g.
+        // a 502 when the upstream provider drops the stream). Surface the real cause
+        // here; otherwise it falls through to a misleading "invalid JSON" (schema
+        // modes) or a silently-empty report (prompt mode). Often transient — a re-run
+        // usually routes to a healthy provider.
+        $choiceError = $decoded['choices'][0]['error'] ?? null;
+        if (\is_array($choiceError) || (string)($decoded['choices'][0]['finish_reason'] ?? '') === 'error') {
+            $message = (string)($choiceError['message'] ?? 'Anbieter hat die Antwort nicht abgeschlossen');
+            $code = $choiceError['code'] ?? null;
+            throw new LlmException(
+                'Anbieterfehler des OpenAI-kompatiblen Endpunkts'
+                    . ($code !== null ? ' (Code ' . $code . ')' : '')
+                    . ': ' . $message . ' — oft vorübergehend, ein erneuter Lauf hilft meist.',
+                $body,
+                $rawBody,
+                1718700218
+            );
+        }
+
         // Truncation: with structured output the decoder force-closes the JSON,
         // so a cut-off answer can still parse — the only reliable signal is the
         // finish reason. Must be checked, or reasoning models silently produce

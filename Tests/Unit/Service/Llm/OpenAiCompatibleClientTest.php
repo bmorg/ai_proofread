@@ -266,6 +266,59 @@ final class OpenAiCompatibleClientTest extends UnitTestCase
         );
     }
 
+    /**
+     * A per-choice provider failure (choices[0].error + finish_reason "error",
+     * content null — e.g. a 502 when the upstream drops the stream) must surface
+     * the real provider message and code, not the generic "invalid JSON" it would
+     * otherwise fall into.
+     */
+    public function testChoiceLevelErrorSurfacesProviderMessageAndCode(): void
+    {
+        $client = $this->createClient();
+
+        try {
+            $client->parseResponse(
+                $this->buildCall($client),
+                200,
+                $this->responseBody('', [
+                    'choices' => [[
+                        'finish_reason' => 'error',
+                        'error' => ['code' => 502, 'message' => 'Stream ended before a terminal response event'],
+                        'message' => ['content' => null],
+                    ]],
+                ])
+            );
+            self::fail('expected an LlmException for the choice-level provider error');
+        } catch (LlmException $e) {
+            self::assertStringContainsString('Stream ended before a terminal response event', $e->getMessage());
+            self::assertStringContainsString('502', $e->getMessage());
+        }
+    }
+
+    /**
+     * The dangerous variant: in prompt mode an unparseable body yields an EMPTY
+     * report — so a choice-level error must fail loudly (the check precedes the
+     * parse), never a silent "0 findings". Also covers the finish_reason-only
+     * branch (no choices[0].error object).
+     */
+    public function testChoiceLevelErrorThrowsEvenInPromptMode(): void
+    {
+        $client = $this->createClient([], ['structuredOutput' => 'prompt']);
+
+        $this->expectException(LlmException::class);
+
+        $client->parseResponse(
+            $this->buildCall($client),
+            200,
+            $this->responseBody('', [
+                'choices' => [[
+                    'finish_reason' => 'error',
+                    'message' => ['content' => null],
+                ]],
+            ])
+        );
+    }
+
     public function testHttp401PointsAtTheApiKey(): void
     {
         $client = $this->createClient();
