@@ -15,9 +15,11 @@ if ((new Typo3Version())->getMajorVersion() < 12) {
         null,
         [
             'routeTarget' => \Bmorg\AiProofread\Controller\ReviewModuleController::class . '::handleRequest',
-            // Match the v12/13 Modules.php value ('user'); 'user,group' is legacy and
-            // not a valid access keyword in the v12/13 module format.
-            'access' => 'user',
+            // v11's ModuleLoader lists a module in the be_users module list only for
+            // 'user' and in the be_groups list only for 'group' — so 'user' alone makes
+            // the module assignable to users but not groups. v12/13's Modules.php
+            // 'user' covers both (and 'user,group' isn't valid there); this block is v11-only.
+            'access' => 'user,group',
             'name' => 'web_aiproofread',
             'iconIdentifier' => 'module-aiproofread',
             'labels' => 'LLL:EXT:ai_proofread/Resources/Private/Language/locallang_mod.xlf',
